@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import org.apache.ignite.*;
-import org.apache.ignite.cache.query.*;
 import org.apache.ignite.internal.processors.cache.*;
 import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
@@ -60,9 +59,9 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     /** Query sequence number for message topic. */
     private final AtomicLong seq = new AtomicLong();
 
-    /** Continues queries created for cache event listeners. */
-    private final ConcurrentMap<CacheEntryListenerConfiguration, CacheContinuousQuery<K, V>> lsnrQrys =
-        new ConcurrentHashMap8<>();
+//    /** Continues queries created for cache event listeners. */
+//    private final ConcurrentMap<CacheEntryListenerConfiguration, CacheContinuousQuery<K, V>> lsnrQrys =
+//        new ConcurrentHashMap8<>();
 
     /** {@inheritDoc} */
     @Override protected void start0() throws IgniteCheckedException {
@@ -85,15 +84,15 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     @Override protected void onKernalStop0(boolean cancel) {
         super.onKernalStop0(cancel);
 
-        for (CacheEntryListenerConfiguration lsnrCfg : lsnrQrys.keySet()) {
-            try {
-                deregisterCacheEntryListener(lsnrCfg);
-            }
-            catch (IgniteCheckedException e) {
-                if (log.isDebugEnabled())
-                    log.debug("Failed to remove cache entry listener: " + e);
-            }
-        }
+//        for (CacheEntryListenerConfiguration lsnrCfg : lsnrQrys.keySet()) {
+//            try {
+//                deregisterCacheEntryListener(lsnrCfg);
+//            }
+//            catch (IgniteCheckedException e) {
+//                if (log.isDebugEnabled())
+//                    log.debug("Failed to remove cache entry listener: " + e);
+//            }
+//        }
     }
 
     /**
@@ -260,13 +259,13 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     public void deregisterCacheEntryListener(CacheEntryListenerConfiguration lsnrCfg) throws IgniteCheckedException {
         A.notNull(lsnrCfg, "lsnrCfg");
 
-        CacheContinuousQuery<K, V> qry = lsnrQrys.remove(lsnrCfg);
-
-        if (qry != null) {
-            cctx.config().removeCacheEntryListenerConfiguration(lsnrCfg);
-
-            qry.close();
-        }
+//        CacheContinuousQuery<K, V> qry = lsnrQrys.remove(lsnrCfg);
+//
+//        if (qry != null) {
+//            cctx.config().removeCacheEntryListenerConfiguration(lsnrCfg);
+//
+//            qry.close();
+//        }
     }
 
     /**
