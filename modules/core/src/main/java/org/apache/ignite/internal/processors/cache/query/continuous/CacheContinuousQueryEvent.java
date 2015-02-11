@@ -70,8 +70,11 @@ class CacheContinuousQueryEvent<K, V> extends CacheEntryEvent<K, V> {
     }
 
     /** {@inheritDoc} */
-    @Override public <T> T unwrap(Class<T> clazz) {
-        throw new UnsupportedOperationException();
+    @Override public <T> T unwrap(Class<T> cls) {
+        if(cls.isAssignableFrom(getClass()))
+            return cls.cast(this);
+
+        throw new IllegalArgumentException("Unwrapping to class is not supported: " + cls);
     }
 
     /** {@inheritDoc} */

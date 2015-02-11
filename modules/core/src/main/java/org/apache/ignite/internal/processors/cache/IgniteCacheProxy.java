@@ -37,6 +37,7 @@ import org.apache.ignite.plugin.security.*;
 import org.jetbrains.annotations.*;
 
 import javax.cache.*;
+import javax.cache.CacheManager;
 import javax.cache.configuration.*;
 import javax.cache.expiry.*;
 import javax.cache.integration.*;
@@ -1189,7 +1190,10 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
     /** {@inheritDoc} */
     @Override public void close() {
         // TODO IGNITE-45 (Support start/close/destroy cache correctly)
-        getCacheManager().destroyCache(getName());
+        CacheManager cacheMgr = getCacheManager();
+
+        if (cacheMgr != null) // cacheMgr == null means cache is closed.
+            cacheMgr.destroyCache(getName());
     }
 
     /** {@inheritDoc} */
