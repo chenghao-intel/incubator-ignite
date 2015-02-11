@@ -23,7 +23,6 @@ import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
-import org.apache.ignite.internal.processors.cache.query.continuous.*;
 import org.apache.ignite.internal.processors.datastructures.*;
 import org.apache.ignite.internal.processors.task.*;
 import org.apache.ignite.internal.util.*;
@@ -33,6 +32,9 @@ import org.apache.ignite.resources.*;
 import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
+import javax.cache.*;
+import javax.cache.event.CacheEntryEvent;
+import javax.cache.event.*;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -59,7 +61,7 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     private CacheProjection<GridCacheQueueHeaderKey, GridCacheQueueHeader> queueHdrView;
 
     /** Query notifying about queue update. */
-    private GridCacheContinuousQueryAdapter queueQry;
+    private QueryCursor<Cache.Entry<Object, Object>> queueQryCur;
 
     /** Queue query creation guard. */
     private final AtomicBoolean queueQryGuard = new AtomicBoolean();
@@ -98,14 +100,8 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     @Override protected void onKernalStop0(boolean cancel) {
         busyLock.block();
 
-        if (queueQry != null) {
-            try {
-                queueQry.close();
-            }
-            catch (IgniteCheckedException e) {
-                U.warn(log, "Failed to cancel queue header query.", e);
-            }
-        }
+        if (queueQryCur != null)
+            queueQryCur.close();
 
         for (GridCacheQueueProxy q : queuesMap.values())
             q.delegate().onKernalStop();
@@ -188,17 +184,15 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
                 return null;
 
             if (queueQryGuard.compareAndSet(false, true)) {
-                queueQry = (GridCacheContinuousQueryAdapter)cctx.cache().queries().createContinuousQuery();
+                ContinuousQuery<Object, Object> qry = Query.continuous();
 
-                queueQry.remoteFilter(new QueueHeaderPredicate());
-
-                queueQry.localCallback(new IgniteBiPredicate<UUID, Collection<GridCacheContinuousQueryEntry>>() {
-                    @Override public boolean apply(UUID id, Collection<GridCacheContinuousQueryEntry> entries) {
+                qry.setLocalListener(new CacheEntryUpdatedListener<Object, Object>() {
+                    @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
                         if (!busyLock.enterBusy())
-                            return false;
+                            return;
 
                         try {
-                            for (GridCacheContinuousQueryEntry e : entries) {
+                            for (CacheEntryEvent<?, ?> e : evts) {
                                 GridCacheQueueHeaderKey key = (GridCacheQueueHeaderKey)e.getKey();
                                 GridCacheQueueHeader hdr = (GridCacheQueueHeader)e.getValue();
 
@@ -220,8 +214,6 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
                                     }
                                 }
                             }
-
-                            return true;
                         }
                         finally {
                             busyLock.leaveBusy();
@@ -229,11 +221,11 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
                     }
                 });
 
-                queueQry.execute(cctx.isLocal() || cctx.isReplicated() ? cctx.grid().forLocal() : null,
-                    true,
-                    false,
-                    false,
-                    true);
+                qry.setRemoteFilter(new QueueHeaderPredicate());
+
+                IgniteCache<Object, Object> jCache = cctx.kernalContext().cache().utilityJCache();
+
+                queueQryCur = cctx.isLocal() || cctx.isReplicated() ? jCache.localQuery(qry) : jCache.query(qry);
             }
 
             GridCacheQueueProxy queue = queuesMap.get(hdr.id());
@@ -544,7 +536,7 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     /**
      * Predicate for queue continuous query.
      */
-    private static class QueueHeaderPredicate implements IgnitePredicate<CacheContinuousQueryEntry>, Externalizable {
+    private static class QueueHeaderPredicate implements CacheEntryEventFilter<Object, Object>, Externalizable {
         /** */
         private static final long serialVersionUID = 0L;
 
@@ -556,7 +548,7 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
         }
 
         /** {@inheritDoc} */
-        @Override public boolean apply(CacheContinuousQueryEntry e) {
+        @Override public boolean evaluate(CacheEntryEvent<?, ?> e) {
             return e.getKey() instanceof GridCacheQueueHeaderKey;
         }
 

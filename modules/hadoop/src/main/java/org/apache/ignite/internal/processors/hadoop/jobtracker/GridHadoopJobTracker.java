@@ -21,6 +21,7 @@ import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.query.*;
 import org.apache.ignite.events.*;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.managers.eventstorage.*;
 import org.apache.ignite.internal.processors.cache.*;
@@ -36,6 +37,8 @@ import org.apache.ignite.lang.*;
 import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
+import javax.cache.event.*;
+import javax.cache.event.CacheEntryEvent;
 import javax.cache.expiry.*;
 import javax.cache.processor.*;
 import java.io.*;
@@ -169,32 +172,30 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
     @Override public void onKernalStart() throws IgniteCheckedException {
         super.onKernalStart();
 
-        CacheContinuousQuery<GridHadoopJobId, GridHadoopJobMetadata> qry = jobMetaCache().queries().createContinuousQuery();
+        ContinuousQuery<GridHadoopJobId, GridHadoopJobMetadata> qry = Query.continuous();
 
-        qry.localCallback(
-            new IgniteBiPredicate<UUID, Collection<CacheContinuousQueryEntry<GridHadoopJobId, GridHadoopJobMetadata>>>() {
-                @Override public boolean apply(UUID nodeId,
-                    final Collection<CacheContinuousQueryEntry<GridHadoopJobId, GridHadoopJobMetadata>> evts) {
-                    if (!busyLock.tryReadLock())
-                        return false;
+        qry.setLocalListener(new CacheEntryUpdatedListener<GridHadoopJobId, GridHadoopJobMetadata>() {
+            @Override public void onUpdated(final Iterable<CacheEntryEvent<? extends GridHadoopJobId,
+                ? extends GridHadoopJobMetadata>> evts) {
+                if (!busyLock.tryReadLock())
+                    return;
 
-                    try {
-                        // Must process query callback in a separate thread to avoid deadlocks.
-                        evtProcSvc.submit(new EventHandler() {
-                            @Override protected void body() throws IgniteCheckedException {
-                                processJobMetadataUpdates(evts);
-                            }
-                        });
-
-                        return true;
-                    }
-                    finally {
-                        busyLock.readUnlock();
-                    }
+                try {
+                    // Must process query callback in a separate thread to avoid deadlocks.
+                    evtProcSvc.submit(new EventHandler() {
+                        @Override protected void body() throws IgniteCheckedException {
+                            processJobMetadataUpdates(evts);
+                        }
+                    });
                 }
-            });
+                finally {
+                    busyLock.readUnlock();
+                }
+            }
+        });
 
-        qry.execute(ctx.kernalContext().grid().forLocal());
+        // TODO: Filter by type
+        ctx.kernalContext().cache().utilityJCache().localQuery(qry);
 
         ctx.kernalContext().event().addLocalEventListener(new GridLocalEventListener() {
             @Override public void onEvent(final Event evt) {
@@ -629,11 +630,11 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
      * @throws IgniteCheckedException If failed.
      */
     private void processJobMetadataUpdates(
-        Iterable<CacheContinuousQueryEntry<GridHadoopJobId, GridHadoopJobMetadata>> updated)
+        Iterable<CacheEntryEvent<? extends GridHadoopJobId, ? extends GridHadoopJobMetadata>> updated)
         throws IgniteCheckedException {
         UUID locNodeId = ctx.localNodeId();
 
-        for (Map.Entry<GridHadoopJobId, GridHadoopJobMetadata> entry : updated) {
+        for (CacheEntryEvent<? extends GridHadoopJobId, ? extends GridHadoopJobMetadata> entry : updated) {
             GridHadoopJobId jobId = entry.getKey();
             GridHadoopJobMetadata meta = entry.getValue();
 

@@ -17,7 +17,7 @@
 
 package org.apache.ignite.cache.query;
 
-import org.apache.ignite.*;
+import org.apache.ignite.internal.util.typedef.internal.*;
 
 import javax.cache.event.*;
 
@@ -106,7 +106,7 @@ import javax.cache.event.*;
  * If you need to repeat execution, use {@link org.apache.ignite.internal.processors.cache.query.CacheQueries#createContinuousQuery()} method to create
  * new query.
  */
-public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> implements AutoCloseable {
+public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -125,6 +125,26 @@ public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> imp
      */
     public static final boolean DFLT_AUTO_UNSUBSCRIBE = true;
 
+    /** Local listener. */
+    private CacheEntryUpdatedListener<K, V> locLsnr;
+
+    /** Remote filter. */
+    private CacheEntryEventFilter<K, V> rmtFilter;
+
+    /** Buffer size. */
+    private int bufSize = DFLT_BUF_SIZE;
+
+    /** Time interval. */
+    private long timeInterval = DFLT_TIME_INTERVAL;
+
+    /** Automatic unsubscription flag. */
+    private boolean autoUnsubscribe = DFLT_AUTO_UNSUBSCRIBE;
+
+    /**
+     * TODO
+     *
+     * @param filter TODO
+     */
     public void setInitialPredicate(Query filter) {
         // TODO: implement.
     }
@@ -143,7 +163,16 @@ public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> imp
      * @param locLsnr Local callback.
      */
     public void setLocalListener(CacheEntryUpdatedListener<K, V> locLsnr) {
-        // TODO: implement.
+        this.locLsnr = locLsnr;
+    }
+
+    /**
+     * Gets local listener.
+     *
+     * @return Local listener.
+     */
+    public CacheEntryUpdatedListener<K, V> getLocalListener() {
+        return locLsnr;
     }
 
     /**
@@ -153,56 +182,86 @@ public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> imp
      * (e.g., synchronization or transactional cache operations), should be executed asynchronously
      * without blocking the thread that called the filter. Otherwise, you can get deadlocks.
      *
-     * @param filter Key-value filter.
+     * @param rmtFilter Key-value filter.
      */
-    public void setRemoteFilter(CacheEntryEventFilter<K, V> filter) {
-        // TODO: implement.
+    public void setRemoteFilter(CacheEntryEventFilter<K, V> rmtFilter) {
+        this.rmtFilter = rmtFilter;
+    }
+
+    /**
+     * Gets remote filter.
+     *
+     * @return Remote filter.
+     */
+    public CacheEntryEventFilter<K, V> getRemoteFilter() {
+        return rmtFilter;
     }
 
     /**
      * Sets buffer size. <p> When a cache update happens, entry is first put into a buffer. Entries from buffer will be
-     * sent to the master node only if the buffer is full or time provided via {@link #timeInterval(long)} method is
+     * sent to the master node only if the buffer is full or time provided via {@link #setTimeInterval(long)} method is
      * exceeded. <p> Default buffer size is {@code 1} which means that entries will be sent immediately (buffering is
      * disabled).
      *
      * @param bufSize Buffer size.
      */
-    public void bufferSize(int bufSize) {
-        // TODO: implement.
+    public void setBufferSize(int bufSize) {
+        A.ensure(bufSize > 0, "bufSize > 0");
+
+        this.bufSize = bufSize;
+    }
+
+    /**
+     * Gets buffer size.
+     *
+     * @return Buffer size.
+     */
+    public int getBufferSize() {
+        return bufSize;
     }
 
     /**
      * Sets time interval. <p> When a cache update happens, entry is first put into a buffer. Entries from buffer will
-     * be sent to the master node only if the buffer is full (its size can be provided via {@link #bufferSize(int)}
+     * be sent to the master node only if the buffer is full (its size can be provided via {@link #setBufferSize(int)}
      * method) or time provided via this method is exceeded. <p> Default time interval is {@code 0} which means that
      * time check is disabled and entries will be sent only when buffer is full.
      *
      * @param timeInterval Time interval.
      */
-    public void timeInterval(long timeInterval) {
-        // TODO: implement.
+    public void setTimeInterval(long timeInterval) {
+        A.ensure(timeInterval >= 0, "timeInterval >= 0");
+
+        this.timeInterval = timeInterval;
+    }
+
+    /**
+     * Gets time interval.
+     *
+     * @return Time interval.
+     */
+    public long getTimeInterval() {
+        return timeInterval;
     }
 
     /**
      * Sets automatic unsubscribe flag. <p> This flag indicates that query filters on remote nodes should be
-     * automatically unregistered if master node (node that initiated the query) leaves topology. If this flag is {@code
-     * false}, filters will be unregistered only when the query is cancelled from master node, and won't ever be
+     * automatically unregistered if master node (node that initiated the query) leaves topology. If this flag is
+     * {@code false}, filters will be unregistered only when the query is cancelled from master node, and won't ever be
      * unregistered if master node leaves grid. <p> Default value for this flag is {@code true}.
      *
      * @param autoUnsubscribe Automatic unsubscription flag.
      */
-    public void autoUnsubscribe(boolean autoUnsubscribe) {
-        // TODO: implement.
+    public void setAutoUnsubscribe(boolean autoUnsubscribe) {
+        this.autoUnsubscribe = autoUnsubscribe;
     }
 
     /**
-     * Stops continuous query execution. <p> Note that one query instance can be executed only once. After it's
-     * cancelled, it's non-operational. If you need to repeat execution, use {@link
-     * org.apache.ignite.internal.processors.cache.query.CacheQueries#createContinuousQuery()} method to create new query.
+     * Gets automatic unsubscription flag value.
      *
-     * @throws IgniteCheckedException In case of error.
+     * @return Automatic unsubscription flag.
      */
-    @Override public void close() throws IgniteCheckedException {
-        // TODO: implement.
+    public boolean isAutoUnsubscribe() {
+        return autoUnsubscribe;
     }
+
 }
