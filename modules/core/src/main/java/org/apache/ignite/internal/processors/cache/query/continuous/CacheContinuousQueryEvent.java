@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
+import org.apache.ignite.internal.util.tostring.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 
 import javax.cache.*;
@@ -27,6 +28,7 @@ import javax.cache.event.*;
  */
 class CacheContinuousQueryEvent<K, V> extends CacheEntryEvent<K, V> {
     /** Entry. */
+    @GridToStringExclude
     private final CacheContinuousQueryEntry<K, V> e;
 
     /**
@@ -79,6 +81,10 @@ class CacheContinuousQueryEvent<K, V> extends CacheEntryEvent<K, V> {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(CacheContinuousQueryEvent.class, this);
+        return S.toString(CacheContinuousQueryEvent.class, this,
+            "key", e.key(),
+            "newVal", e.value(),
+            "oldVal", e.oldValue(),
+            "cacheName", e.cacheName());
     }
 }

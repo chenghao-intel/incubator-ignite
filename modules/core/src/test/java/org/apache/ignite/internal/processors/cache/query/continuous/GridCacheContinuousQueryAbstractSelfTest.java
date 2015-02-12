@@ -167,7 +167,7 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
         for (int i = 0; i < gridCount(); i++) {
             GridContinuousProcessor proc = ((IgniteKernal)grid(i)).context().continuous();
 
-            assertEquals(String.valueOf(i), 0, ((Map)U.field(proc, "locInfos")).size());
+            assertEquals(String.valueOf(i), 2, ((Map)U.field(proc, "locInfos")).size());
             assertEquals(String.valueOf(i), 0, ((Map)U.field(proc, "rmtInfos")).size());
             assertEquals(String.valueOf(i), 0, ((Map)U.field(proc, "startFuts")).size());
             assertEquals(String.valueOf(i), 0, ((Map)U.field(proc, "waitForStartAck")).size());
@@ -256,8 +256,6 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
         qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
             @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
                 for (CacheEntryEvent<? extends Integer, ? extends Integer> e : evts) {
-                    U.debug(">>>>>>>>>>>>>>> EVT: " + e);
-
                     synchronized (map) {
                         List<Integer> vals = map.get(e.getKey());
 
@@ -384,6 +382,9 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
      */
     public void testLocalNodeOnly() throws Exception {
         IgniteCache<Integer, Integer> cache = grid(0).jcache(null);
+
+        if (grid(0).cache(null).configuration().getCacheMode() != PARTITIONED)
+            return;
 
         ContinuousQuery<Integer, Integer> qry = Query.continuous();
 
@@ -612,91 +613,112 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
         }
     }
 
-//    /**
-//     * @throws Exception If failed.
-//     */
-//    public void testIteration() throws Exception {
-//        GridCache<Integer, Integer> cache = grid(0).cache(null);
-//
-//        CacheContinuousQuery<Integer, Integer> qry = cache.queries().createContinuousQuery();
-//
-//        final Map<Integer, Integer> map = new ConcurrentHashMap8<>();
-//        final CountDownLatch latch = new CountDownLatch(10);
-//
-//        qry.localCallback(new P2<UUID, Collection<CacheContinuousQueryEntry<Integer, Integer>>>() {
-//            @Override public boolean apply(UUID nodeId,
-//                Collection<CacheContinuousQueryEntry<Integer, Integer>> entries) {
-//                for (Map.Entry<Integer, Integer> e : entries) {
-//                    map.put(e.getKey(), e.getValue());
-//
-//                    latch.countDown();
-//                }
-//
-//                return true;
-//            }
-//        });
-//
-//        try {
-//            for (int i = 0; i < 10; i++)
-//                cache.putx(i, i);
-//
-//            qry.execute();
-//
-//            assert latch.await(LATCH_TIMEOUT, MILLISECONDS);
-//
-//            assertEquals(10, map.size());
-//
-//            for (int i = 0; i < 10; i++)
-//                assertEquals(i, (int)map.get(i));
-//        }
-//        finally {
-//            qry.close();
-//        }
-//    }
-//
-//    /**
-//     * @throws Exception If failed.
-//     */
-//    public void testIterationAndUpdates() throws Exception {
-//        GridCache<Integer, Integer> cache = grid(0).cache(null);
-//
-//        CacheContinuousQuery<Integer, Integer> qry = cache.queries().createContinuousQuery();
-//
-//        final Map<Integer, Integer> map = new ConcurrentHashMap8<>();
-//        final CountDownLatch latch = new CountDownLatch(12);
-//
-//        qry.localCallback(new P2<UUID, Collection<CacheContinuousQueryEntry<Integer, Integer>>>() {
-//            @Override public boolean apply(UUID nodeId, Collection<CacheContinuousQueryEntry<Integer, Integer>> entries) {
-//                for (Map.Entry<Integer, Integer> e : entries) {
-//                    map.put(e.getKey(), e.getValue());
-//
-//                    latch.countDown();
-//                }
-//
-//                return true;
-//            }
-//        });
-//
-//        try {
-//            for (int i = 0; i < 10; i++)
-//                cache.putx(i, i);
-//
-//            qry.execute();
-//
-//            cache.putx(10, 10);
-//            cache.putx(11, 11);
-//
-//            assert latch.await(LATCH_TIMEOUT, MILLISECONDS) : latch.getCount();
-//
-//            assertEquals(12, map.size());
-//
-//            for (int i = 0; i < 12; i++)
-//                assertEquals(i, (int)map.get(i));
-//        }
-//        finally {
-//            qry.close();
-//        }
-//    }
+    /**
+     * @throws Exception If failed.
+     */
+    public void testInitialPredicate() throws Exception {
+        IgniteCache<Integer, Integer> cache = grid(0).jcache(null);
+
+        ContinuousQuery<Integer, Integer> qry = Query.continuous();
+
+        qry.setInitialPredicate(Query.scan(new P2<Integer, Integer>() {
+            @Override public boolean apply(Integer k, Integer v) {
+                return k >= 5;
+            }
+        }));
+
+        qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
+            @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
+                assert false;
+            }
+        });
+
+        for (int i = 0; i < 10; i++)
+            cache.put(i, i);
+
+        try (QueryCursor<Cache.Entry<Integer, Integer>> cur = cache.query(qry)) {
+            List<Cache.Entry<Integer, Integer>> res = cur.getAll();
+
+            Collections.sort(res, new Comparator<Cache.Entry<Integer, Integer>>() {
+                @Override public int compare(Cache.Entry<Integer, Integer> e1, Cache.Entry<Integer, Integer> e2) {
+                    return e1.getKey().compareTo(e2.getKey());
+                }
+            });
+
+            assertEquals(5, res.size());
+
+            int exp = 5;
+
+            for (Cache.Entry<Integer, Integer> e : res) {
+                assertEquals(exp, e.getKey().intValue());
+                assertEquals(exp, e.getValue().intValue());
+
+                exp++;
+            }
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testInitialPredicateAndUpdates() throws Exception {
+        IgniteCache<Integer, Integer> cache = grid(0).jcache(null);
+
+        ContinuousQuery<Integer, Integer> qry = Query.continuous();
+
+        qry.setInitialPredicate(Query.scan(new P2<Integer, Integer>() {
+            @Override public boolean apply(Integer k, Integer v) {
+                return k >= 5;
+            }
+        }));
+
+        final Map<Integer, Integer> map = new ConcurrentHashMap8<>();
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
+            @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
+                for (CacheEntryEvent<? extends Integer, ? extends Integer> e : evts) {
+                    map.put(e.getKey(), e.getValue());
+
+                    latch.countDown();
+                }
+            }
+        });
+
+        for (int i = 0; i < 10; i++)
+            cache.put(i, i);
+
+        try (QueryCursor<Cache.Entry<Integer, Integer>> cur = cache.query(qry)) {
+            List<Cache.Entry<Integer, Integer>> res = cur.getAll();
+
+            Collections.sort(res, new Comparator<Cache.Entry<Integer, Integer>>() {
+                @Override public int compare(Cache.Entry<Integer, Integer> e1, Cache.Entry<Integer, Integer> e2) {
+                    return e1.getKey().compareTo(e2.getKey());
+                }
+            });
+
+            assertEquals(5, res.size());
+
+            int exp = 5;
+
+            for (Cache.Entry<Integer, Integer> e : res) {
+                assertEquals(exp, e.getKey().intValue());
+                assertEquals(exp, e.getValue().intValue());
+
+                exp++;
+            }
+
+            cache.put(10, 10);
+            cache.put(11, 11);
+
+            assert latch.await(LATCH_TIMEOUT, MILLISECONDS) : latch.getCount();
+
+            assertEquals(2, map.size());
+
+            for (int i = 11; i < 12; i++)
+                assertEquals(i, (int)map.get(i));
+        }
+    }
 
     /**
      * @throws Exception If failed.
@@ -836,6 +858,12 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
         final CountDownLatch latch = new CountDownLatch(1);
         final Collection<Integer> keys = new GridConcurrentHashSet<>();
 
+        qry.setInitialPredicate(Query.scan(new P2<Integer, Integer>() {
+            @Override public boolean apply(Integer k, Integer v) {
+                return true;
+            }
+        }));
+
         qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
             @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
                 for (CacheEntryEvent<? extends Integer, ? extends Integer> evt : evts) {
@@ -847,10 +875,19 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
             }
         });
 
-        Ignite ignite = startGrid("anotherGrid");
+        IgniteCache<Integer, Integer> cache0 = startGrid("anotherGrid").jcache(null);
 
-        try (QueryCursor<Cache.Entry<Integer, Integer>> ignored = ignite.<Integer, Integer>jcache(null).localQuery(qry)) {
-            assert latch.await(LATCH_TIMEOUT, MILLISECONDS);
+        boolean repl = cache0.getConfiguration(CacheConfiguration.class).getCacheMode() == REPLICATED;
+
+        try (QueryCursor<Cache.Entry<Integer, Integer>> cur = repl ? cache0.localQuery(qry) : cache0.query(qry)) {
+            for (Cache.Entry<Integer, Integer> evt : cur) {
+                keys.add(evt.getKey());
+
+                if (keys.size() >= keysCnt)
+                    latch.countDown();
+            }
+
+            assert latch.await(LATCH_TIMEOUT, MILLISECONDS) : keys.size();
 
             assertEquals(keysCnt, keys.size());
         }

@@ -125,6 +125,9 @@ public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> {
      */
     public static final boolean DFLT_AUTO_UNSUBSCRIBE = true;
 
+    /** Initial filter. */
+    private Query initFilter;
+
     /** Local listener. */
     private CacheEntryUpdatedListener<K, V> locLsnr;
 
@@ -141,12 +144,21 @@ public final class ContinuousQuery<K, V> extends Query<ContinuousQuery<K,V>> {
     private boolean autoUnsubscribe = DFLT_AUTO_UNSUBSCRIBE;
 
     /**
-     * TODO
+     * Sets initial query.
      *
-     * @param filter TODO
+     * @param initFilter Initial query.
      */
-    public void setInitialPredicate(Query filter) {
-        // TODO: implement.
+    public void setInitialPredicate(Query initFilter) {
+        this.initFilter = initFilter;
+    }
+
+    /**
+     * Gets initial query.
+     *
+     * @return Initial query.
+     */
+    public Query getInitialPredicate() {
+        return initFilter;
     }
 
     /**
