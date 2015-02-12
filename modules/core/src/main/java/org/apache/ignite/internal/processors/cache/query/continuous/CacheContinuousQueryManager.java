@@ -120,7 +120,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
      * @throws IgniteCheckedException In case of error.
      */
     public void onEntryUpdated(GridCacheEntryEx<K, V> e, K key, V newVal, GridCacheValueBytes newBytes,
-        V oldVal, GridCacheValueBytes oldBytes) throws IgniteCheckedException {
+        V oldVal, GridCacheValueBytes oldBytes, EventType type) throws IgniteCheckedException {
         assert e != null;
         assert key != null;
 
@@ -136,17 +136,14 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
 
         oldVal = cctx.unwrapTemporary(oldVal);
 
-        EventType evtType = newVal == null ? REMOVED :
-            ((oldVal != null || (oldBytes != null && !oldBytes.isNull()) ? UPDATED : CREATED));
-
         CacheContinuousQueryEntry<K, V> e0 = new CacheContinuousQueryEntry<>(key, newVal, newBytes, oldVal, oldBytes);
 
         e0.initValue(cctx.marshaller(), cctx.deploy().globalLoader());
 
         CacheContinuousQueryEvent<K, V> evt = new CacheContinuousQueryEvent<>(
-            cctx.kernalContext().grid().jcache(cctx.name()), evtType, e0);
+            cctx.kernalContext().grid().jcache(cctx.name()), type, e0);
 
-        boolean primary = e.wrap(false).primary();
+        boolean primary = cctx.affinity().primary(cctx.localNode(), key, -1);
         boolean recordIgniteEvt = !e.isInternal() && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
 
         for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values())
@@ -177,8 +174,11 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
             CacheContinuousQueryEvent<K, V> evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().grid().jcache(cctx.name()), EXPIRED, e0);
 
+            boolean primary = cctx.affinity().primary(cctx.localNode(), key, -1);
+            boolean recordIgniteEvt = cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
+
             for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values())
-                lsnr.onEntryUpdated(evt, true, false);
+                lsnr.onEntryUpdated(evt, primary, recordIgniteEvt);
         }
     }
 

@@ -35,8 +35,10 @@ import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.apache.ignite.lang.*;
 import org.jetbrains.annotations.*;
+import sun.plugin.dom.exception.*;
 
 import javax.cache.*;
+import javax.cache.event.*;
 import javax.cache.expiry.*;
 import javax.cache.processor.*;
 import java.io.*;
@@ -1164,8 +1166,11 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                     subjId, null, taskName);
             }
 
-            if (cctx.isLocal() || cctx.isReplicated() || (tx != null && tx.local() && !isNear()))
-                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
+            if (cctx.isLocal() || cctx.isReplicated() || (tx != null && tx.local() && !isNear())) {
+                EventType type = old != null || oldBytes != null ? EventType.UPDATED : EventType.CREATED;
+
+                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes, type);
+            }
 
             cctx.dataStructures().onEntryUpdated(key, false);
         }
@@ -1324,7 +1329,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 }
 
                 if (cctx.isLocal() || cctx.isReplicated() || (tx != null && tx.local() && !isNear()))
-                    cctx.continuousQueries().onEntryUpdated(this, key, null, null, old, oldBytes);
+                    cctx.continuousQueries().onEntryUpdated(this, key, null, null, old, oldBytes, EventType.REMOVED);
 
                 cctx.dataStructures().onEntryUpdated(key, true);
             }
@@ -1633,7 +1638,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             if (res)
                 updateMetrics(op, metrics);
 
-            cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
+            cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes, eventType(op));
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE);
 
@@ -1645,7 +1650,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             }
         }
 
-        return new GridTuple3<>(res, cctx.<V>unwrapTemporary(interceptorRes != null ? interceptorRes.get2() : old), invokeRes);
+        return new GridTuple3<>(res, cctx.<V>unwrapTemporary(interceptorRes != null ? interceptorRes.get2() : old),
+            invokeRes);
     }
 
     /** {@inheritDoc} */
@@ -2205,7 +2211,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 updateMetrics(op, metrics);
 
             if (cctx.isReplicated() || primary)
-                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
+                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes,
+                    eventType(op));
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE);
 
@@ -3212,7 +3219,8 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 if (!skipQryNtf) {
                     if (!preload && (cctx.isLocal() || cctx.isReplicated() ||
                         cctx.affinity().primary(cctx.localNode(), key, topVer)))
-                        cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), null, null);
+                        cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), null, null,
+                            EventType.CREATED);
 
                     cctx.dataStructures().onEntryUpdated(key, false);
                 }
@@ -4374,6 +4382,26 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             cctx.deploy().localLoader();
 
         return cctx.marshaller().unmarshal(res, ldr);
+    }
+
+    /**
+     * @param op Operation.
+     * @return Event type.
+     */
+    private EventType eventType(GridCacheOperation op) {
+        switch (op) {
+            case CREATE:
+                return EventType.CREATED;
+
+            case UPDATE:
+                return EventType.UPDATED;
+
+            case DELETE:
+                return EventType.REMOVED;
+
+            default:
+                throw new InvalidStateException("Invalid operation: " + op);
+        }
     }
 
     /** {@inheritDoc} */

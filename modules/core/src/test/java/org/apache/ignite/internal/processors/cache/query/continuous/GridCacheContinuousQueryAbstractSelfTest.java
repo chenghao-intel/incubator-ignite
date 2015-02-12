@@ -28,7 +28,6 @@ import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
 import org.apache.ignite.internal.processors.continuous.*;
 import org.apache.ignite.internal.processors.datastructures.*;
-import org.apache.ignite.internal.util.*;
 import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.apache.ignite.lang.*;
@@ -43,7 +42,6 @@ import org.jetbrains.annotations.*;
 
 import javax.cache.*;
 import javax.cache.configuration.*;
-import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.*;
 import javax.cache.integration.*;
 import java.util.*;
@@ -829,67 +827,6 @@ public abstract class GridCacheContinuousQueryAbstractSelfTest extends GridCommo
             assert latch.await(LATCH_TIMEOUT, MILLISECONDS) : all;
 
             assertEquals(2, all.size());
-        }
-        finally {
-            stopGrid("anotherGrid");
-        }
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    public void testCallbackForPreload() throws Exception {
-        IgniteCache<Integer, Integer> cache = grid(0).jcache(null);
-
-        if (cache.getConfiguration(CacheConfiguration.class).getCacheMode() == LOCAL)
-            return;
-
-        Map<Integer, Integer> map = new HashMap<>();
-
-        final int keysCnt = 1000;
-
-        for (int i = 0; i < keysCnt; i++)
-            map.put(i, i);
-
-        cache.putAll(map);
-
-        ContinuousQuery<Integer, Integer> qry = Query.continuous();
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Collection<Integer> keys = new GridConcurrentHashSet<>();
-
-        qry.setInitialPredicate(Query.scan(new P2<Integer, Integer>() {
-            @Override public boolean apply(Integer k, Integer v) {
-                return true;
-            }
-        }));
-
-        qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
-            @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
-                for (CacheEntryEvent<? extends Integer, ? extends Integer> evt : evts) {
-                    keys.add(evt.getKey());
-
-                    if (keys.size() >= keysCnt)
-                        latch.countDown();
-                }
-            }
-        });
-
-        IgniteCache<Integer, Integer> cache0 = startGrid("anotherGrid").jcache(null);
-
-        boolean repl = cache0.getConfiguration(CacheConfiguration.class).getCacheMode() == REPLICATED;
-
-        try (QueryCursor<Cache.Entry<Integer, Integer>> cur = repl ? cache0.localQuery(qry) : cache0.query(qry)) {
-            for (Cache.Entry<Integer, Integer> evt : cur) {
-                keys.add(evt.getKey());
-
-                if (keys.size() >= keysCnt)
-                    latch.countDown();
-            }
-
-            assert latch.await(LATCH_TIMEOUT, MILLISECONDS) : keys.size();
-
-            assertEquals(keysCnt, keys.size());
         }
         finally {
             stopGrid("anotherGrid");
