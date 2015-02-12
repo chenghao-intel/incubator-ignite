@@ -35,7 +35,6 @@ import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.apache.ignite.lang.*;
 import org.jetbrains.annotations.*;
-import sun.plugin.dom.exception.*;
 
 import javax.cache.*;
 import javax.cache.event.*;
@@ -4400,7 +4399,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 return EventType.REMOVED;
 
             default:
-                throw new InvalidStateException("Invalid operation: " + op);
+                throw new IllegalStateException("Invalid operation: " + op);
         }
     }
 
