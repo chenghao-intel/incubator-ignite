@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.service;
 
 import org.apache.ignite.*;
-import org.apache.ignite.cache.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
@@ -41,10 +40,10 @@ import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
 import javax.cache.event.*;
+import javax.cache.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-import static java.util.Map.*;
 import static org.apache.ignite.configuration.DeploymentMode.*;
 import static org.apache.ignite.events.EventType.*;
 import static org.apache.ignite.internal.processors.cache.GridCacheUtils.*;
@@ -343,7 +342,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                                 "different configuration) [deployed=" + dep.configuration() + ", new=" + cfg + ']'));
                         }
                         else {
-                            for (CacheEntry<Object, Object> e : cache.entrySetx()) {
+                            for (Cache.Entry<Object, Object> e : cache.entrySetx()) {
                                 if (e.getKey() instanceof GridServiceAssignmentsKey) {
                                     GridServiceAssignments assigns = (GridServiceAssignments)e.getValue();
 
@@ -435,7 +434,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
     public IgniteInternalFuture<?> cancelAll() {
         Collection<IgniteInternalFuture<?>> futs = new ArrayList<>();
 
-        for (CacheEntry<Object, Object> e : cache.entrySetx()) {
+        for (Cache.Entry<Object, Object> e : cache.entrySetx()) {
             if (!(e.getKey() instanceof GridServiceDeploymentKey))
                 continue;
 
@@ -454,7 +453,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
     public Collection<ServiceDescriptor> serviceDescriptors() {
         Collection<ServiceDescriptor> descs = new ArrayList<>();
 
-        for (CacheEntry<Object, Object> e : cache.entrySetx()) {
+        for (Cache.Entry<Object, Object> e : cache.entrySetx()) {
             if (!(e.getKey() instanceof GridServiceDeploymentKey))
                 continue;
 
@@ -657,7 +656,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                                 Collection<UUID> used = new HashSet<>();
 
                                 // Avoid redundant moving of services.
-                                for (Entry<UUID, Integer> e : oldAssigns.assigns().entrySet()) {
+                                for (Map.Entry<UUID, Integer> e : oldAssigns.assigns().entrySet()) {
                                     // Do not assign services to left nodes.
                                     if (ctx.discovery().node(e.getKey()) == null)
                                         continue;
@@ -674,12 +673,12 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                                 }
 
                                 if (remainder > 0) {
-                                    List<Entry<UUID, Integer>> entries = new ArrayList<>(cnts.entrySet());
+                                    List<Map.Entry<UUID, Integer>> entries = new ArrayList<>(cnts.entrySet());
 
                                     // Randomize.
                                     Collections.shuffle(entries);
 
-                                    for (Entry<UUID, Integer> e : entries) {
+                                    for (Map.Entry<UUID, Integer> e : entries) {
                                         // Assign only the ones that have not been reused from previous assignments.
                                         if (!used.contains(e.getKey())) {
                                             if (e.getValue() < maxPerNodeCnt) {
@@ -693,12 +692,12 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                                 }
                             }
                             else {
-                                List<Entry<UUID, Integer>> entries = new ArrayList<>(cnts.entrySet());
+                                List<Map.Entry<UUID, Integer>> entries = new ArrayList<>(cnts.entrySet());
 
                                 // Randomize.
                                 Collections.shuffle(entries);
 
-                                for (Entry<UUID, Integer> e : entries) {
+                                for (Map.Entry<UUID, Integer> e : entries) {
                                     e.setValue(e.getValue() + 1);
 
                                     if (--remainder == 0)
@@ -1047,7 +1046,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                                 ctx.cache().context().deploy().ignoreOwnership(true);
 
                             try {
-                                for (CacheEntry<Object, Object> e : cache.entrySetx()) {
+                                for (Cache.Entry<Object, Object> e : cache.entrySetx()) {
                                     if (!(e.getKey() instanceof GridServiceDeploymentKey))
                                         continue;
 
@@ -1080,7 +1079,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
                         }
 
                         // Clean up zombie assignments.
-                        for (CacheEntry<Object, Object> e : cache.primaryEntrySetx()) {
+                        for (Cache.Entry<Object, Object> e : cache.primaryEntrySetx()) {
                             if (!(e.getKey() instanceof GridServiceAssignmentsKey))
                                 continue;
 
