@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.hadoop.jobtracker;
 
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
-import org.apache.ignite.cache.query.*;
 import org.apache.ignite.events.*;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.*;
@@ -38,7 +37,6 @@ import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
 import javax.cache.event.*;
-import javax.cache.event.CacheEntryEvent;
 import javax.cache.expiry.*;
 import javax.cache.processor.*;
 import java.io.*;
@@ -83,6 +81,9 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
 
     /** Component busy lock. */
     private GridSpinReadWriteLock busyLock;
+
+    /** Job meta query ID. */
+    private UUID jobMetaQryId;
 
     /** Closure to check result of async transform of system cache. */
     private final IgniteInClosure<IgniteInternalFuture<?>> failsLog = new CI1<IgniteInternalFuture<?>>() {
@@ -138,8 +139,7 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
                         ExpiryPolicy finishedJobPlc = new ModifiedExpiryPolicy(
                             new Duration(MILLISECONDS, ctx.configuration().getFinishedJobInfoTtl()));
 
-                        finishedJobMetaPrj = ((GridCacheProjectionEx<GridHadoopJobId, GridHadoopJobMetadata>)prj).
-                            withExpiryPolicy(finishedJobPlc);
+                        finishedJobMetaPrj = prj.withExpiryPolicy(finishedJobPlc);
                     }
                     else
                         finishedJobMetaPrj = jobMetaPrj;
@@ -172,30 +172,29 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
     @Override public void onKernalStart() throws IgniteCheckedException {
         super.onKernalStart();
 
-        ContinuousQuery<GridHadoopJobId, GridHadoopJobMetadata> qry = Query.continuous();
+        jobMetaQryId = jobMetaCache().context().continuousQueries().executeInternalQuery(
+            new CacheEntryUpdatedListener<GridHadoopJobId, GridHadoopJobMetadata>() {
+                @Override public void onUpdated(final Iterable<CacheEntryEvent<? extends GridHadoopJobId,
+                    ? extends GridHadoopJobMetadata>> evts) {
+                    if (!busyLock.tryReadLock())
+                        return;
 
-        qry.setLocalListener(new CacheEntryUpdatedListener<GridHadoopJobId, GridHadoopJobMetadata>() {
-            @Override public void onUpdated(final Iterable<CacheEntryEvent<? extends GridHadoopJobId,
-                ? extends GridHadoopJobMetadata>> evts) {
-                if (!busyLock.tryReadLock())
-                    return;
-
-                try {
-                    // Must process query callback in a separate thread to avoid deadlocks.
-                    evtProcSvc.submit(new EventHandler() {
-                        @Override protected void body() throws IgniteCheckedException {
-                            processJobMetadataUpdates(evts);
-                        }
-                    });
+                    try {
+                        // Must process query callback in a separate thread to avoid deadlocks.
+                        evtProcSvc.submit(new EventHandler() {
+                            @Override protected void body() throws IgniteCheckedException {
+                                processJobMetadataUpdates(evts);
+                            }
+                        });
+                    }
+                    finally {
+                        busyLock.readUnlock();
+                    }
                 }
-                finally {
-                    busyLock.readUnlock();
-                }
-            }
-        });
-
-        // TODO: Filter by type
-        ctx.kernalContext().cache().utilityJCache().localQuery(qry);
+            },
+            null,
+            true
+        );
 
         ctx.kernalContext().event().addLocalEventListener(new GridLocalEventListener() {
             @Override public void onEvent(final Event evt) {
@@ -228,6 +227,8 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
         // Fail all pending futures.
         for (GridFutureAdapter<GridHadoopJobId> fut : activeFinishFuts.values())
             fut.onDone(new IgniteCheckedException("Failed to execute Hadoop map-reduce job (grid is stopping)."));
+
+        jobMetaCache().context().continuousQueries().cancelInternalQuery(jobMetaQryId);
     }
 
     /**

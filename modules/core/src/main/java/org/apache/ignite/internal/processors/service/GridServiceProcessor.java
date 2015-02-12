@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.service;
 
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
-import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
@@ -41,8 +40,6 @@ import org.apache.ignite.thread.*;
 import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
-import javax.cache.*;
-import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -89,11 +86,11 @@ public class GridServiceProcessor extends GridProcessorAdapter {
     /** Topology listener. */
     private GridLocalEventListener topLsnr = new TopologyListener();
 
-    /** Deployment listener. */
-    private QueryCursor<Cache.Entry<Object, Object>> cfgQryCur;
+    /** Deployment listener ID. */
+    private UUID cfgQryId;
 
-    /** Assignment listener. */
-    private QueryCursor<Cache.Entry<Object, Object>> assignQryCur;
+    /** Assignment listener ID. */
+    private UUID assignQryId;
 
     /**
      * @param ctx Kernal context.
@@ -122,7 +119,7 @@ public class GridServiceProcessor extends GridProcessorAdapter {
         if (ctx.isDaemon())
             return;
 
-        cache = (GridCacheProjectionEx<Object, Object>)ctx.cache().utilityCache();
+        cache = ctx.cache().utilityCache();
 
         ctx.event().addLocalEventListener(topLsnr, EVTS_DISCOVERY);
 
@@ -130,19 +127,9 @@ public class GridServiceProcessor extends GridProcessorAdapter {
             if (ctx.deploy().enabled())
                 ctx.cache().context().deploy().ignoreOwnership(true);
 
-            IgniteCache<Object, Object> jCache = ctx.cache().utilityJCache();
-
-            ContinuousQuery<Object, Object> cfgQry = Query.continuous();
-
-            cfgQry.setLocalListener(new DeploymentListener());
-
-            cfgQryCur = jCache.localQuery(cfgQry);
-
-            ContinuousQuery<Object, Object> assignQry = Query.continuous();
-
-            assignQry.setLocalListener(new AssignmentListener());
-
-            assignQryCur = jCache.localQuery(assignQry);
+            cfgQryId = cache.context().continuousQueries().executeInternalQuery(new DeploymentListener(), null, true);
+            assignQryId = cache.context().continuousQueries().executeInternalQuery(
+                new AssignmentListener(), null, true);
         }
         finally {
             if (ctx.deploy().enabled())
@@ -175,11 +162,11 @@ public class GridServiceProcessor extends GridProcessorAdapter {
 
         ctx.event().removeLocalEventListener(topLsnr);
 
-        if (cfgQryCur != null)
-            cfgQryCur.close();
+        if (cfgQryId != null)
+            cache.context().continuousQueries().cancelInternalQuery(cfgQryId);
 
-        if (assignQryCur != null)
-            assignQryCur.close();
+        if (assignQryId != null)
+            cache.context().continuousQueries().cancelInternalQuery(assignQryId);
 
         Collection<ServiceContextImpl> ctxs = new ArrayList<>();
 

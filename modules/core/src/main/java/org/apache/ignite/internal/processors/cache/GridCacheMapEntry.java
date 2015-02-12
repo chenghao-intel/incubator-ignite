@@ -1166,7 +1166,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             }
 
             if (cctx.isLocal() || cctx.isReplicated() || (tx != null && tx.local() && !isNear()))
-                cctx.continuousQueries().onEntryUpdate(this, key, val, valueBytesUnlocked(), old, oldBytes, false);
+                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
 
             cctx.dataStructures().onEntryUpdated(key, false);
         }
@@ -1325,7 +1325,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 }
 
                 if (cctx.isLocal() || cctx.isReplicated() || (tx != null && tx.local() && !isNear()))
-                    cctx.continuousQueries().onEntryUpdate(this, key, null, null, old, oldBytes, false);
+                    cctx.continuousQueries().onEntryUpdated(this, key, null, null, old, oldBytes);
 
                 cctx.dataStructures().onEntryUpdated(key, true);
             }
@@ -1602,7 +1602,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             if (res)
                 updateMetrics(op, metrics);
 
-            cctx.continuousQueries().onEntryUpdate(this, key, val, valueBytesUnlocked(), old, oldBytes, false);
+            cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE);
 
@@ -2139,7 +2139,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 updateMetrics(op, metrics);
 
             if (cctx.isReplicated() || primary)
-                cctx.continuousQueries().onEntryUpdate(this, key, val, valueBytesUnlocked(), old, oldBytes, false);
+                cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), old, oldBytes);
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE);
 
@@ -3137,16 +3137,9 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
                 drReplicate(drType, val, valBytes, ver);
 
                 if (!skipQryNtf) {
-                    if (cctx.isLocal() || cctx.isReplicated() ||
-                        cctx.affinity().primary(cctx.localNode(), key, topVer)) {
-                        cctx.continuousQueries().onEntryUpdate(this,
-                            key,
-                            val,
-                            valueBytesUnlocked(),
-                            null,
-                            null,
-                            preload);
-                    }
+                    if (!preload && (cctx.isLocal() || cctx.isReplicated() ||
+                        cctx.affinity().primary(cctx.localNode(), key, topVer)))
+                        cctx.continuousQueries().onEntryUpdated(this, key, val, valueBytesUnlocked(), null, null);
 
                     cctx.dataStructures().onEntryUpdated(key, false);
                 }

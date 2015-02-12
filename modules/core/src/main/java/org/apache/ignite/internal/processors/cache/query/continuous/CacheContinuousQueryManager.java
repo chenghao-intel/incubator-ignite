@@ -18,13 +18,15 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import org.apache.ignite.*;
+import org.apache.ignite.cache.*;
+import org.apache.ignite.cache.query.*;
+import org.apache.ignite.cluster.*;
 import org.apache.ignite.internal.processors.cache.*;
+import org.apache.ignite.internal.processors.continuous.*;
 import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
-import org.apache.ignite.lang.*;
-import org.apache.ignite.resources.*;
+import org.apache.ignite.plugin.security.*;
 import org.jdk8.backport.*;
-import org.jetbrains.annotations.*;
 
 import javax.cache.configuration.*;
 import javax.cache.event.*;
@@ -34,6 +36,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
 import static javax.cache.event.EventType.*;
+import static org.apache.ignite.cache.CacheDistributionMode.*;
 import static org.apache.ignite.events.EventType.*;
 import static org.apache.ignite.internal.GridTopic.*;
 
@@ -41,8 +44,17 @@ import static org.apache.ignite.internal.GridTopic.*;
  * Continuous queries manager.
  */
 public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K, V> {
-    /** Ordered topic prefix. */
-    private String topicPrefix;
+    /** */
+    private static final byte CREATED_FLAG = 0b0001;
+
+    /** */
+    private static final byte UPDATED_FLAG = 0b0010;
+
+    /** */
+    private static final byte REMOVED_FLAG = 0b0100;
+
+    /** */
+    private static final byte EXPIRED_FLAG = 0b1000;
 
     /** Listeners. */
     private final ConcurrentMap<UUID, CacheContinuousQueryListener<K, V>> lsnrs = new ConcurrentHashMap8<>();
@@ -59,9 +71,12 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     /** Query sequence number for message topic. */
     private final AtomicLong seq = new AtomicLong();
 
-//    /** Continues queries created for cache event listeners. */
-//    private final ConcurrentMap<CacheEntryListenerConfiguration, CacheContinuousQuery<K, V>> lsnrQrys =
-//        new ConcurrentHashMap8<>();
+    /** JCache listeners. */
+    private final ConcurrentMap<CacheEntryListenerConfiguration, JCacheQuery> jCacheLsnrs =
+        new ConcurrentHashMap8<>();
+
+    /** Ordered topic prefix. */
+    private String topicPrefix;
 
     /** {@inheritDoc} */
     @Override protected void start0() throws IgniteCheckedException {
@@ -72,11 +87,11 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
     @Override protected void onKernalStart0() throws IgniteCheckedException {
-        Iterable<CacheEntryListenerConfiguration<K, V>> lsnrCfgs = cctx.config().getCacheEntryListenerConfigurations();
+        Iterable<CacheEntryListenerConfiguration<K, V>> cfgs = cctx.config().getCacheEntryListenerConfigurations();
 
-        if (lsnrCfgs != null) {
-            for (CacheEntryListenerConfiguration<K, V> cfg : lsnrCfgs)
-                registerCacheEntryListener(cfg, false);
+        if (cfgs != null) {
+            for (CacheEntryListenerConfiguration<K, V> cfg : cfgs)
+                executeJCacheQuery(cfg, true);
         }
     }
 
@@ -84,22 +99,15 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     @Override protected void onKernalStop0(boolean cancel) {
         super.onKernalStop0(cancel);
 
-//        for (CacheEntryListenerConfiguration lsnrCfg : lsnrQrys.keySet()) {
-//            try {
-//                deregisterCacheEntryListener(lsnrCfg);
-//            }
-//            catch (IgniteCheckedException e) {
-//                if (log.isDebugEnabled())
-//                    log.debug("Failed to remove cache entry listener: " + e);
-//            }
-//        }
-    }
-
-    /**
-     * @return New topic.
-     */
-    public Object topic() {
-        return TOPIC_CACHE.topic(topicPrefix, cctx.localNodeId(), seq.getAndIncrement());
+        for (JCacheQuery lsnr : jCacheLsnrs.values()) {
+            try {
+                lsnr.cancel();
+            }
+            catch (IgniteCheckedException e) {
+                if (log.isDebugEnabled())
+                    log.debug("Failed to stop JCache entry listener: " + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -109,16 +117,10 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
      * @param newBytes New value bytes.
      * @param oldVal Old value.
      * @param oldBytes Old value bytes.
-     * @param preload {@code True} if entry is updated during preloading.
      * @throws IgniteCheckedException In case of error.
      */
-    public void onEntryUpdate(GridCacheEntryEx<K, V> e,
-        K key,
-        @Nullable V newVal,
-        @Nullable GridCacheValueBytes newBytes,
-        V oldVal,
-        @Nullable GridCacheValueBytes oldBytes,
-        boolean preload) throws IgniteCheckedException {
+    public void onEntryUpdated(GridCacheEntryEx<K, V> e, K key, V newVal, GridCacheValueBytes newBytes,
+        V oldVal, GridCacheValueBytes oldBytes) throws IgniteCheckedException {
         assert e != null;
         assert key != null;
 
@@ -147,12 +149,8 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
         boolean primary = e.wrap(false).primary();
         boolean recordIgniteEvt = !e.isInternal() && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
 
-        for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values()) {
-//            if (preload && lsnr.entryListener())
-//                continue;
-
-            lsnr.onEntryUpdate(evt, primary, recordIgniteEvt);
-        }
+        for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values())
+            lsnr.onEntryUpdated(evt, primary, recordIgniteEvt);
     }
 
     /**
@@ -161,10 +159,10 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
      * @param oldVal Old value.
      * @param oldBytes Old value bytes.
      */
-    public void onEntryExpired(GridCacheEntryEx<K, V> e,
-        K key,
-        V oldVal,
-        @Nullable GridCacheValueBytes oldBytes) {
+    public void onEntryExpired(GridCacheEntryEx<K, V> e, K key, V oldVal, GridCacheValueBytes oldBytes) {
+        assert e != null;
+        assert key != null;
+
         if (e.isInternal())
             return;
 
@@ -179,106 +177,185 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
             CacheContinuousQueryEvent<K, V> evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().grid().jcache(cctx.name()), EXPIRED, e0);
 
-            for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values()) {
-//                if (!lsnr.entryListener())
-//                    continue;
-
-                lsnr.onEntryUpdate(evt, true, false);
-            }
+            for (CacheContinuousQueryListener<K, V> lsnr : lsnrCol.values())
+                lsnr.onEntryUpdated(evt, true, false);
         }
     }
 
     /**
-     * @param lsnrCfg Listener configuration.
-     * @param addToCfg If {@code true} adds listener configuration to cache configuration.
-     * @throws IgniteCheckedException If failed.
+     * @param locLsnr Local listener.
+     * @param rmtFilter Remote filter.
+     * @param bufSize Buffer size.
+     * @param timeInterval Time interval.
+     * @param autoUnsubscribe Auto unsubscribe flag.
+     * @param grp Cluster group.
+     * @return Continuous routine ID.
+     * @throws IgniteCheckedException In case of error.
      */
-    @SuppressWarnings("unchecked")
-    public void registerCacheEntryListener(CacheEntryListenerConfiguration<K, V> lsnrCfg, boolean addToCfg)
-        throws IgniteCheckedException {
-//        GridCacheContinuousQueryAdapter<K, V> qry = null;
-//
-//        try {
-//            A.notNull(lsnrCfg, "lsnrCfg");
-//
-//            Factory<CacheEntryListener<? super K, ? super V>> factory = lsnrCfg.getCacheEntryListenerFactory();
-//
-//            A.notNull(factory, "cacheEntryListenerFactory");
-//
-//            CacheEntryListener lsnr = factory.create();
-//
-//            A.notNull(lsnr, "lsnr");
-//
-//            IgniteCacheProxy<K, V> cache= cctx.kernalContext().cache().jcache(cctx.name());
-//
-//            EntryListenerCallback cb = new EntryListenerCallback(cache, lsnr);
-//
-//            if (!(cb.create() || cb.update() || cb.remove() || cb.expire()))
-//                throw new IllegalArgumentException("Listener must implement one of CacheEntryListener sub-interfaces.");
-//
-//            qry = (GridCacheContinuousQueryAdapter<K, V>)cctx.cache().queries().createContinuousQuery();
-//
-//            CacheContinuousQuery<K, V> old = lsnrQrys.putIfAbsent(lsnrCfg, qry);
-//
-//            if (old != null)
-//                throw new IllegalArgumentException("Listener is already registered for configuration: " + lsnrCfg);
-//
-//            qry.autoUnsubscribe(true);
-//
-//            qry.bufferSize(1);
-//
-////            qry.localCallback(cb);
-//
-//            EntryListenerFilter<K, V> fltr = new EntryListenerFilter<>(cb.create(),
-//                cb.update(),
-//                cb.remove(),
-//                cb.expire(),
-//                lsnrCfg.getCacheEntryEventFilterFactory(),
-//                cctx.kernalContext().grid(),
-//                cctx.name());
-//
-////            qry.remoteFilter(fltr);
-//
-//            qry.execute(null, false, true, lsnrCfg.isSynchronous(), lsnrCfg.isOldValueRequired());
-//
-//            if (addToCfg)
-//                cctx.config().addCacheEntryListenerConfiguration(lsnrCfg);
-//        }
-//        catch (IgniteCheckedException e) {
-//            lsnrQrys.remove(lsnrCfg, qry); // Remove query if failed to execute it.
-//
-//            throw e;
-//        }
+    public UUID executeQuery(CacheEntryUpdatedListener<K, V> locLsnr, CacheEntryEventFilter<K, V> rmtFilter,
+        int bufSize, long timeInterval, boolean autoUnsubscribe, ClusterGroup grp) throws IgniteCheckedException {
+        return executeQuery0(
+            locLsnr,
+            rmtFilter,
+            bufSize,
+            timeInterval,
+            autoUnsubscribe,
+            false,
+            true,
+            false,
+            true,
+            grp);
     }
 
     /**
-     * @param lsnrCfg Listener configuration.
-     * @throws IgniteCheckedException If failed.
+     * @param locLsnr Local listener.
+     * @param rmtFilter Remote filter.
+     * @param loc Local flag.
+     * @return Continuous routine ID.
+     * @throws IgniteCheckedException In case of error.
      */
-    @SuppressWarnings("unchecked")
-    public void deregisterCacheEntryListener(CacheEntryListenerConfiguration lsnrCfg) throws IgniteCheckedException {
-        A.notNull(lsnrCfg, "lsnrCfg");
+    public UUID executeInternalQuery(CacheEntryUpdatedListener<K, V> locLsnr, CacheEntryEventFilter<K, V> rmtFilter,
+        boolean loc) throws IgniteCheckedException {
+        return executeQuery0(
+            locLsnr,
+            rmtFilter,
+            ContinuousQuery.DFLT_BUF_SIZE,
+            ContinuousQuery.DFLT_TIME_INTERVAL,
+            ContinuousQuery.DFLT_AUTO_UNSUBSCRIBE,
+            true,
+            true,
+            false,
+            true,
+            loc ? cctx.grid().forLocal() : null);
+    }
 
-//        CacheContinuousQuery<K, V> qry = lsnrQrys.remove(lsnrCfg);
-//
-//        if (qry != null) {
-//            cctx.config().removeCacheEntryListenerConfiguration(lsnrCfg);
-//
-//            qry.close();
-//        }
+    public void cancelInternalQuery(UUID routineId) {
+        try {
+            cctx.kernalContext().continuous().stopRoutine(routineId).get();
+        }
+        catch (IgniteCheckedException e) {
+            if (log.isDebugEnabled())
+                log.debug("Failed to stop internal continuous query: " + e.getMessage());
+        }
+    }
+
+    /**
+     * @param cfg Listener configuration.
+     * @param onStart Whether listener is created on node start.
+     * @throws IgniteCheckedException
+     */
+    public void executeJCacheQuery(CacheEntryListenerConfiguration<K, V> cfg, boolean onStart)
+        throws IgniteCheckedException {
+        JCacheQuery lsnr = new JCacheQuery(cfg, onStart);
+
+        JCacheQuery old = jCacheLsnrs.putIfAbsent(cfg, lsnr);
+
+        if (old != null)
+            throw new IgniteCheckedException("Listener is already registered for configuration: " + cfg);
+
+        try {
+            lsnr.execute();
+        }
+        catch (IgniteCheckedException e) {
+            cancelJCacheQuery(cfg);
+
+            throw e;
+        }
+    }
+
+    /**
+     * @param cfg Listener configuration.
+     * @throws IgniteCheckedException In case of error.
+     */
+    public void cancelJCacheQuery(CacheEntryListenerConfiguration<K, V> cfg) throws IgniteCheckedException {
+        JCacheQuery lsnr = jCacheLsnrs.remove(cfg);
+
+        if (lsnr != null)
+            lsnr.cancel();
+    }
+
+    /**
+     * @param locLsnr Local listener.
+     * @param rmtFilter Remote filter.
+     * @param bufSize Buffer size.
+     * @param timeInterval Time interval.
+     * @param autoUnsubscribe Auto unsubscribe flag.
+     * @param internal Internal flag.
+     * @param oldValRequired Old value required flag.
+     * @param sync Synchronous flag.
+     * @param ignoreExpired Ignore expired event flag.
+     * @param grp Cluster group.
+     * @return Continuous routine ID.
+     * @throws IgniteCheckedException In case of error.
+     */
+    private UUID executeQuery0(CacheEntryUpdatedListener<K, V> locLsnr, CacheEntryEventFilter<K, V> rmtFilter,
+        int bufSize, long timeInterval, boolean autoUnsubscribe, boolean internal, boolean oldValRequired,
+        boolean sync, boolean ignoreExpired, ClusterGroup grp) throws IgniteCheckedException {
+        cctx.checkSecurity(GridSecurityPermission.CACHE_READ);
+
+        if (grp == null)
+            grp = cctx.kernalContext().grid();
+
+        Collection<ClusterNode> nodes = grp.nodes();
+
+        if (nodes.isEmpty())
+            throw new ClusterTopologyException("Failed to execute continuous query (empty cluster group is " +
+                "provided).");
+
+        boolean skipPrimaryCheck = false;
+
+        switch (cctx.config().getCacheMode()) {
+            case LOCAL:
+                if (!nodes.contains(cctx.localNode()))
+                    throw new ClusterTopologyException("Continuous query for LOCAL cache can be executed " +
+                        "only locally (provided projection contains remote nodes only).");
+                else if (nodes.size() > 1)
+                    U.warn(log, "Continuous query for LOCAL cache will be executed locally (provided projection is " +
+                        "ignored).");
+
+                grp = grp.forNode(cctx.localNode());
+
+                break;
+
+            case REPLICATED:
+                if (nodes.size() == 1 && F.first(nodes).equals(cctx.localNode())) {
+                    CacheDistributionMode distributionMode = cctx.config().getDistributionMode();
+
+                    if (distributionMode == PARTITIONED_ONLY || distributionMode == NEAR_PARTITIONED)
+                        skipPrimaryCheck = true;
+                }
+
+                break;
+        }
+
+        int taskNameHash = !internal && cctx.kernalContext().security().enabled() ?
+            cctx.kernalContext().job().currentTaskNameHash() : 0;
+
+        GridContinuousHandler hnd = new CacheContinuousQueryHandler<>(
+            cctx.name(),
+            TOPIC_CACHE.topic(topicPrefix, cctx.localNodeId(), seq.getAndIncrement()),
+            locLsnr,
+            rmtFilter,
+            internal,
+            oldValRequired,
+            sync,
+            ignoreExpired,
+            taskNameHash,
+            skipPrimaryCheck);
+
+        return cctx.kernalContext().continuous().startRoutine(hnd, bufSize, timeInterval,
+            autoUnsubscribe, grp.predicate()).get();
     }
 
     /**
      * @param lsnrId Listener ID.
      * @param lsnr Listener.
      * @param internal Internal flag.
-     * @param entryLsnr {@code True} if query created for {@link CacheEntryListener}.
      * @return Whether listener was actually registered.
      */
     boolean registerListener(UUID lsnrId,
         CacheContinuousQueryListener<K, V> lsnr,
-        boolean internal,
-        boolean entryLsnr) {
+        boolean internal) {
         boolean added;
 
         if (internal) {
@@ -324,295 +401,215 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     }
 
     /**
-     *
      */
-    static class EntryListenerFilter<K1, V1> implements
-        IgnitePredicate<CacheContinuousQueryEntry<K1, V1>>, Externalizable {
+    private class JCacheQuery {
         /** */
-        private static final long serialVersionUID = 0L;
+        private final CacheEntryListenerConfiguration<K, V> cfg;
 
         /** */
-        private boolean create;
+        private final boolean onStart;
 
         /** */
-        private boolean update;
-
-        /** */
-        private boolean rmv;
-
-        /** */
-        private boolean expire;
-
-        /** */
-        private Factory<CacheEntryEventFilter<? super K1, ? super V1>> fltrFactory;
-
-        /** */
-        private CacheEntryEventFilter fltr;
-
-        /** */
-        @IgniteInstanceResource
-        private Ignite ignite;
-
-        /** */
-        private IgniteCache cache;
-
-        /** */
-        private String cacheName;
+        private volatile UUID routineId;
 
         /**
-         *
+         * @param cfg Listener configuration.
          */
-        public EntryListenerFilter() {
-            // No-op.
+        private JCacheQuery(CacheEntryListenerConfiguration<K, V> cfg, boolean onStart) {
+            this.cfg = cfg;
+            this.onStart = onStart;
         }
 
         /**
-         * @param create {@code True} if listens for create events.
-         * @param update {@code True} if listens for create events.
-         * @param rmv {@code True} if listens for remove events.
-         * @param expire {@code True} if listens for expire events.
-         * @param fltrFactory Filter factory.
-         * @param ignite Ignite instance.
-         * @param cacheName Cache name.
+         * @throws IgniteCheckedException In case of error.
          */
-        EntryListenerFilter(
-            boolean create,
-            boolean update,
-            boolean rmv,
-            boolean expire,
-            Factory<CacheEntryEventFilter<? super K1, ? super V1>> fltrFactory,
-            Ignite ignite,
-            @Nullable String cacheName) {
-            this.create = create;
-            this.update = update;
-            this.rmv = rmv;
-            this.expire = expire;
-            this.fltrFactory = fltrFactory;
-            this.ignite = ignite;
-            this.cacheName = cacheName;
+        @SuppressWarnings("unchecked")
+        void execute() throws IgniteCheckedException {
+            if (!onStart)
+                cctx.config().addCacheEntryListenerConfiguration(cfg);
 
-            if (fltrFactory != null)
-                fltr = fltrFactory.create();
+            CacheEntryListener<? super K, ? super V> locLsnrImpl = cfg.getCacheEntryListenerFactory().create();
 
-            cache = ignite.jcache(cacheName);
+            if (locLsnrImpl == null)
+                throw new IgniteCheckedException("Local CacheEntryListener is mandatory and can't be null.");
 
-            assert cache != null : cacheName;
+            byte types = 0;
+
+            types |= locLsnrImpl instanceof CacheEntryCreatedListener ? CREATED_FLAG : 0;
+            types |= locLsnrImpl instanceof CacheEntryUpdatedListener ? UPDATED_FLAG : 0;
+            types |= locLsnrImpl instanceof CacheEntryRemovedListener ? REMOVED_FLAG : 0;
+            types |= locLsnrImpl instanceof CacheEntryExpiredListener ? EXPIRED_FLAG : 0;
+
+            if (types == 0)
+                throw new IgniteCheckedException("Listener must implement one of CacheEntryListener sub-interfaces.");
+
+            CacheEntryUpdatedListener<K, V> locLsnr = (CacheEntryUpdatedListener<K, V>)new JCacheQueryLocalListener<>(
+                locLsnrImpl);
+
+            CacheEntryEventFilter<K, V> rmtFilter = (CacheEntryEventFilter<K, V>)new JCacheQueryRemoteFilter<>(
+                cfg.getCacheEntryEventFilterFactory().create(), types);
+
+            routineId = executeQuery0(
+                locLsnr,
+                rmtFilter,
+                ContinuousQuery.DFLT_BUF_SIZE,
+                ContinuousQuery.DFLT_TIME_INTERVAL,
+                ContinuousQuery.DFLT_AUTO_UNSUBSCRIBE,
+                false,
+                cfg.isOldValueRequired(),
+                cfg.isSynchronous(),
+                false,
+                null);
+        }
+
+        /**
+         * @throws IgniteCheckedException In case of error.
+         */
+        @SuppressWarnings("unchecked")
+        void cancel() throws IgniteCheckedException {
+            UUID routineId0 = routineId;
+
+            assert routineId0 != null;
+
+            cctx.kernalContext().continuous().stopRoutine(routineId0).get();
+
+            cctx.config().removeCacheEntryListenerConfiguration(cfg);
+        }
+    }
+
+    /**
+     */
+    private static class JCacheQueryLocalListener<K, V> implements CacheEntryUpdatedListener<K, V> {
+        /** */
+        private CacheEntryListener<K, V> impl;
+
+        /**
+         * @param impl Listener.
+         */
+        private JCacheQueryLocalListener(CacheEntryListener<K, V> impl) {
+            assert impl != null;
+
+            this.impl = impl;
         }
 
         /** {@inheritDoc} */
-        @SuppressWarnings("unchecked")
-        @Override public boolean apply(CacheContinuousQueryEntry<K1, V1> entry) {
-            return false;
+        @Override public void onUpdated(Iterable<CacheEntryEvent<? extends K, ? extends V>> evts) {
+            for (CacheEntryEvent<? extends K, ? extends V> evt : evts) {
+                switch (evt.getEventType()) {
+                    case CREATED:
+                        assert impl instanceof CacheEntryCreatedListener;
 
-//            try {
-//                EventType evtType = (((GridCacheContinuousQueryEntry)entry).eventType());
-//
-//                switch (evtType) {
-//                    case EXPIRED:
-//                        if (!expire)
-//                            return false;
-//
-//                        break;
-//
-//                    case REMOVED:
-//                        if (!rmv)
-//                            return false;
-//
-//                        break;
-//
-//                    case CREATED:
-//                        if (!create)
-//                            return false;
-//
-//                        break;
-//
-//                    case UPDATED:
-//                        if (!update)
-//                            return false;
-//
-//                        break;
-//
-//                    default:
-//                        assert false : evtType;
-//                }
-//
-//                if (fltr == null)
-//                    return true;
-//
-//                if (cache == null) {
-//                    cache = ignite.jcache(cacheName);
-//
-//                    assert cache != null : cacheName;
-//                }
-//
-//                return fltr.evaluate(new CacheEntryEvent(cache, evtType, entry));
-//            }
-//            catch (Exception e) {
-//                LT.warn(ignite.log(), e, "Cache entry event filter error: " + e);
-//
-//                return true;
-//            }
+                        ((CacheEntryCreatedListener<K, V>)impl).onCreated(singleton(evt));
+
+                        break;
+
+                    case UPDATED:
+                        assert impl instanceof CacheEntryUpdatedListener;
+
+                        ((CacheEntryUpdatedListener<K, V>)impl).onUpdated(singleton(evt));
+
+                        break;
+
+                    case REMOVED:
+                        assert impl instanceof CacheEntryRemovedListener;
+
+                        ((CacheEntryRemovedListener<K, V>)impl).onRemoved(singleton(evt));
+
+                        break;
+
+                    case EXPIRED:
+                        assert impl instanceof CacheEntryExpiredListener;
+
+                        ((CacheEntryExpiredListener<K, V>)impl).onExpired(singleton(evt));
+
+                        break;
+
+                    default:
+                        throw new IllegalStateException("Unknown type: " + evt.getEventType());
+                }
+            }
+        }
+
+        /**
+         * @param evt Event.
+         * @return Singleton iterable.
+         */
+        private Iterable<CacheEntryEvent<? extends K, ? extends V>> singleton(
+            CacheEntryEvent<? extends K, ? extends V> evt) {
+            Collection<CacheEntryEvent<? extends K, ? extends V>> evts = new ArrayList<>(1);
+
+            evts.add(evt);
+
+            return evts;
+        }
+    }
+
+    /**
+     */
+    private static class JCacheQueryRemoteFilter<K, V> implements CacheEntryEventFilter<K, V>, Externalizable {
+        /** */
+        private CacheEntryEventFilter<K, V> impl;
+
+        /** */
+        private byte types;
+
+        /**
+         * For {@link Externalizable}.
+         */
+        public JCacheQueryRemoteFilter() {
+            // no-op.
+        }
+
+        /**
+         * @param impl Filter.
+         * @param types Types.
+         */
+        JCacheQueryRemoteFilter(CacheEntryEventFilter<K, V> impl, byte types) {
+            assert types != 0;
+
+            this.impl = impl;
+            this.types = types;
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean evaluate(CacheEntryEvent<? extends K, ? extends V> evt) {
+            return (types & flag(evt.getEventType())) != 0 && (impl == null || impl.evaluate(evt));
         }
 
         /** {@inheritDoc} */
         @Override public void writeExternal(ObjectOutput out) throws IOException {
-            out.writeBoolean(create);
-
-            out.writeBoolean(update);
-
-            out.writeBoolean(rmv);
-
-            out.writeBoolean(expire);
-
-            U.writeString(out, cacheName);
-
-            out.writeObject(fltrFactory);
+            out.writeObject(impl);
+            out.writeByte(types);
         }
 
         /** {@inheritDoc} */
         @SuppressWarnings("unchecked")
         @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-            create = in.readBoolean();
-
-            update = in.readBoolean();
-
-            rmv = in.readBoolean();
-
-            expire = in.readBoolean();
-
-            cacheName = U.readString(in);
-
-            fltrFactory = (Factory<CacheEntryEventFilter<? super K1, ? super V1>>)in.readObject();
-
-            if (fltrFactory != null)
-                fltr = fltrFactory.create();
-        }
-    }
-
-    /**
-     *
-     */
-    private class EntryListenerCallback implements
-        IgniteBiPredicate<UUID, Collection<CacheContinuousQueryEntry<K, V>>> {
-        /** */
-        private final IgniteCacheProxy<K, V> cache;
-
-        /** */
-        private final CacheEntryCreatedListener createLsnr;
-
-        /** */
-        private final CacheEntryUpdatedListener updateLsnr;
-
-        /** */
-        private final CacheEntryRemovedListener rmvLsnr;
-
-        /** */
-        private final CacheEntryExpiredListener expireLsnr;
-
-        /**
-         * @param cache Cache to be used as event source.
-         * @param lsnr Listener.
-         */
-        EntryListenerCallback(IgniteCacheProxy<K, V> cache, CacheEntryListener lsnr) {
-            this.cache = cache;
-
-            createLsnr = lsnr instanceof CacheEntryCreatedListener ? (CacheEntryCreatedListener)lsnr : null;
-            updateLsnr = lsnr instanceof CacheEntryUpdatedListener ? (CacheEntryUpdatedListener)lsnr : null;
-            rmvLsnr = lsnr instanceof CacheEntryRemovedListener ? (CacheEntryRemovedListener)lsnr : null;
-            expireLsnr = lsnr instanceof CacheEntryExpiredListener ? (CacheEntryExpiredListener)lsnr : null;
+            impl = (CacheEntryEventFilter<K, V>)in.readObject();
+            types = in.readByte();
         }
 
         /**
-         * @return {@code True} if listens for create event.
+         * @param evtType Type.
+         * @return Flag value.
          */
-        boolean create() {
-            return createLsnr != null;
-        }
+        private byte flag(EventType evtType) {
+            switch (evtType) {
+                case CREATED:
+                    return CREATED_FLAG;
 
-        /**
-         * @return {@code True} if listens for update event.
-         */
-        boolean update() {
-            return updateLsnr != null;
-        }
+                case UPDATED:
+                    return UPDATED_FLAG;
 
-        /**
-         * @return {@code True} if listens for remove event.
-         */
-        boolean remove() {
-            return rmvLsnr != null;
-        }
+                case REMOVED:
+                    return REMOVED_FLAG;
 
-        /**
-         * @return {@code True} if listens for expire event.
-         */
-        boolean expire() {
-            return expireLsnr != null;
-        }
+                case EXPIRED:
+                    return EXPIRED_FLAG;
 
-        /** {@inheritDoc} */
-        @SuppressWarnings("unchecked")
-        @Override public boolean apply(UUID uuid,
-            Collection<CacheContinuousQueryEntry<K, V>> entries) {
-//            for (CacheContinuousQueryEntry entry : entries) {
-//                try {
-//                    EventType evtType = (((GridCacheContinuousQueryEntry)entry).eventType());
-//
-//                    switch (evtType) {
-//                        case EXPIRED: {
-//                            assert expireLsnr != null;
-//
-//                            CacheEntryEvent evt0 =
-//                                new CacheEntryEvent(cache, EXPIRED, entry);
-//
-//                            expireLsnr.onExpired(Collections.singleton(evt0));
-//
-//                            break;
-//                        }
-//
-//                        case REMOVED: {
-//                            assert rmvLsnr != null;
-//
-//                            CacheEntryEvent evt0 =
-//                                new CacheEntryEvent(cache, REMOVED, entry);
-//
-//                            rmvLsnr.onRemoved(Collections.singleton(evt0));
-//
-//                            break;
-//                        }
-//
-//                        case UPDATED: {
-//                            assert updateLsnr != null;
-//
-//                            CacheEntryEvent evt0 =
-//                                new CacheEntryEvent(cache, UPDATED, entry);
-//
-//                            updateLsnr.onUpdated(Collections.singleton(evt0));
-//
-//                            break;
-//                        }
-//
-//                        case CREATED: {
-//                            assert createLsnr != null;
-//
-//                            CacheEntryEvent evt0 =
-//                                new CacheEntryEvent(cache, CREATED, entry);
-//
-//                            createLsnr.onCreated(Collections.singleton(evt0));
-//
-//                            break;
-//                        }
-//
-//                        default:
-//                            assert false : evtType;
-//                    }
-//                }
-//                catch (CacheEntryListenerException e) {
-//                    LT.warn(log, e, "Cache entry listener error: " + e);
-//                }
-//            }
-
-            return true;
+                default:
+                    throw new IllegalStateException("Unknown type: " + evtType);
+            }
         }
     }
 }

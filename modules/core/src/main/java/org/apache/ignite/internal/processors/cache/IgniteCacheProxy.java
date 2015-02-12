@@ -24,8 +24,6 @@ import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.query.*;
-import org.apache.ignite.internal.processors.cache.query.continuous.*;
-import org.apache.ignite.internal.processors.continuous.*;
 import org.apache.ignite.internal.util.*;
 import org.apache.ignite.internal.util.future.*;
 import org.apache.ignite.internal.util.tostring.*;
@@ -33,7 +31,6 @@ import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.apache.ignite.lang.*;
 import org.apache.ignite.mxbean.*;
-import org.apache.ignite.plugin.security.*;
 import org.jetbrains.annotations.*;
 
 import javax.cache.*;
@@ -45,8 +42,6 @@ import javax.cache.processor.*;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.locks.*;
-
-import static org.apache.ignite.cache.CacheDistributionMode.*;
 
 /**
  * Cache proxy.
@@ -337,7 +332,7 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
      * Executes continuous query.
      *
      * @param qry Query.
-     * @param loc Whether query is local.
+     * @param loc Local flag.
      * @return Initial iteration cursor.
      */
     private QueryCursor<Entry<K,V>> queryContinuous(ContinuousQuery<K, V> qry, boolean loc) {
@@ -348,63 +343,14 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         if (qry.getLocalListener() == null)
             throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
 
-        ctx.checkSecurity(GridSecurityPermission.CACHE_READ);
-
-        IgniteEx ignite = ctx.kernalContext().grid();
-
-        ClusterGroup grp = (loc ? ignite.forLocal() : ignite).forCacheNodes(ctx.name());
-
-        Collection<ClusterNode> nodes = grp.nodes();
-
-        if (nodes.isEmpty())
-            throw new ClusterTopologyException("Failed to execute continuous query (empty cluster group is " +
-                "provided): " + qry);
-
-        boolean skipPrimaryCheck = false;
-
-        switch (ctx.config().getCacheMode()) {
-            case LOCAL:
-                if (!nodes.contains(ctx.localNode()))
-                    throw new ClusterTopologyException("Continuous query for LOCAL cache can be executed " +
-                        "only locally (provided projection contains remote nodes only): " + qry);
-                else if (nodes.size() > 1)
-                    U.warn(log, "Continuous query for LOCAL cache will be executed locally (provided projection is " +
-                        "ignored): " + this);
-
-                grp = grp.forNode(ctx.localNode());
-
-                break;
-
-            case REPLICATED:
-                if (nodes.size() == 1 && F.first(nodes).equals(ctx.localNode())) {
-                    CacheDistributionMode distributionMode = ctx.config().getDistributionMode();
-
-                    if (distributionMode == PARTITIONED_ONLY || distributionMode == NEAR_PARTITIONED)
-                        skipPrimaryCheck = true;
-                }
-
-                break;
-        }
-
-        int taskNameHash = ctx.kernalContext().security().enabled() ?
-            ctx.kernalContext().job().currentTaskNameHash() : 0;
-
-        GridContinuousHandler hnd = new CacheContinuousQueryHandler<>(
-            ctx.name(),
-            ctx.continuousQueries().topic(),
-            qry.getLocalListener(),
-            qry.getRemoteFilter(),
-            false,
-            false,
-            false,
-            true,
-            skipPrimaryCheck,
-            taskNameHash,
-            false);
-
         try {
-            final UUID routineId = ctx.kernalContext().continuous().startRoutine(hnd, qry.getBufferSize(),
-                qry.getTimeInterval(), qry.isAutoUnsubscribe(), grp.predicate()).get();
+            final UUID routineId = ctx.continuousQueries().executeQuery(
+                qry.getLocalListener(),
+                qry.getRemoteFilter(),
+                qry.getBufferSize(),
+                qry.getTimeInterval(),
+                qry.isAutoUnsubscribe(),
+                loc ? ctx.grid().forLocal() : null);
 
             final QueryCursor<Cache.Entry<K, V>> cur;
 
@@ -1226,7 +1172,7 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
-            ctx.continuousQueries().registerCacheEntryListener(lsnrCfg, true);
+            ctx.continuousQueries().executeJCacheQuery(lsnrCfg, false);
         }
         catch (IgniteCheckedException e) {
             throw cacheException(e);
@@ -1237,11 +1183,11 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
     }
 
     /** {@inheritDoc} */
-    @Override public void deregisterCacheEntryListener(CacheEntryListenerConfiguration lsnrCfg) {
+    @Override public void deregisterCacheEntryListener(CacheEntryListenerConfiguration<K, V> lsnrCfg) {
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
-            ctx.continuousQueries().deregisterCacheEntryListener(lsnrCfg);
+            ctx.continuousQueries().cancelJCacheQuery(lsnrCfg);
         }
         catch (IgniteCheckedException e) {
             throw cacheException(e);

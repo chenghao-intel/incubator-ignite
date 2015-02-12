@@ -29,8 +29,8 @@ import org.apache.ignite.internal.util.typedef.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
 import org.jetbrains.annotations.*;
 
-import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.*;
+import javax.cache.event.EventType;
 import java.io.*;
 import java.util.*;
 
@@ -49,32 +49,29 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     /** Topic for ordered messages. */
     private Object topic;
 
-    /** Local callback. */
-    private CacheEntryUpdatedListener<K, V> locLsnr;
+    /** Local listener. */
+    private transient CacheEntryUpdatedListener<K, V> locLsnr;
 
-    /** Filter. */
+    /** Remote filter. */
     private CacheEntryEventFilter<K, V> rmtFilter;
 
     /** Deployable object for filter. */
-    private DeployableObject filterDep;
+    private DeployableObject rmtFilterDep;
 
     /** Internal flag. */
     private boolean internal;
 
-    /** Entry listener flag. */
-    private boolean entryLsnr;
+    /** Old value required flag. */
+    private boolean oldValRequired;
 
-    /** Synchronous listener flag. */
+    /** Synchronous flag. */
     private boolean sync;
 
-    /** {@code True} if old value is required. */
-    private boolean oldVal;
+    /** Ignore expired events flag. */
+    private boolean ignoreExpired;
 
     /** Task name hash code. */
     private int taskHash;
-
-    /** Keep portable flag. */
-    private boolean keepPortable;
 
     /** Whether to skip primary check for REPLICATED cache. */
     private transient boolean skipPrimaryCheck;
@@ -93,30 +90,36 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
      * @param topic Topic for ordered messages.
      * @param locLsnr Local listener.
      * @param rmtFilter Remote filter.
-     * @param internal If {@code true} then query is notified about internal entries updates.
-     * @param entryLsnr {@code True} if query created for {@link CacheEntryListener}.
-     * @param sync {@code True} if query created for synchronous {@link CacheEntryListener}.
-     * @param oldVal {@code True} if old value is required.
+     * @param internal Internal flag.
+     * @param oldValRequired Old value required flag.
+     * @param sync Synchronous flag.
+     * @param ignoreExpired Ignore expired events flag.
      * @param skipPrimaryCheck Whether to skip primary check for REPLICATED cache.
      * @param taskHash Task name hash code.
      */
-    public CacheContinuousQueryHandler(@Nullable String cacheName, Object topic,
-        CacheEntryUpdatedListener<K, V> locLsnr, CacheEntryEventFilter<K, V> rmtFilter, boolean internal,
-        boolean entryLsnr, boolean sync, boolean oldVal, boolean skipPrimaryCheck, int taskHash, boolean keepPortable) {
+    public CacheContinuousQueryHandler(
+        String cacheName,
+        Object topic,
+        CacheEntryUpdatedListener<K, V> locLsnr,
+        CacheEntryEventFilter<K, V> rmtFilter,
+        boolean internal,
+        boolean oldValRequired,
+        boolean sync,
+        boolean ignoreExpired,
+        int taskHash,
+        boolean skipPrimaryCheck) {
         assert topic != null;
         assert locLsnr != null;
-        assert !sync || entryLsnr;
 
         this.cacheName = cacheName;
         this.topic = topic;
         this.locLsnr = locLsnr;
         this.rmtFilter = rmtFilter;
         this.internal = internal;
-        this.entryLsnr = entryLsnr;
+        this.oldValRequired = oldValRequired;
         this.sync = sync;
-        this.oldVal = oldVal;
+        this.ignoreExpired = ignoreExpired;
         this.taskHash = taskHash;
-        this.keepPortable = keepPortable;
         this.skipPrimaryCheck = skipPrimaryCheck;
     }
 
@@ -170,7 +173,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 }
             }
 
-            @Override public void onEntryUpdate(CacheContinuousQueryEvent<K, V> evt, boolean primary, boolean recordIgniteEvt) {
+            @Override public void onEntryUpdated(CacheContinuousQueryEvent<K, V> evt, boolean primary,
+                boolean recordIgniteEvt) {
+                if (ignoreExpired && evt.getEventType() == EventType.EXPIRED)
+                    return;
+
                 GridCacheContext<K, V> cctx = cacheContext(ctx);
 
                 if (cctx.isReplicated() && !skipPrimaryCheck && !primary)
@@ -190,9 +197,6 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 }
 
                 if (notify) {
-                    if (!oldVal)
-                        evt.entry().nullifyOldValue();
-
                     if (loc)
                         locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
                     else {
@@ -218,7 +222,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         }
                     }
 
-                    if (!entryLsnr && recordIgniteEvt) {
+                    if (recordIgniteEvt) {
                         ctx.event().record(new CacheQueryReadEvent<>(
                             ctx.discovery().localNode(),
                             "Continuous query executed.",
@@ -242,16 +246,20 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
 
             @Override public void onUnregister() {
-                if (rmtFilter != null && rmtFilter instanceof CacheContinuousQueryFilterEx)
+                if (rmtFilter instanceof CacheContinuousQueryFilterEx)
                     ((CacheContinuousQueryFilterEx)rmtFilter).onQueryUnregister();
             }
 
-            @Nullable private String taskName() {
+            @Override public boolean oldValueRequired() {
+                return oldValRequired;
+            }
+
+            private String taskName() {
                 return ctx.security().enabled() ? ctx.task().resolveTaskName(taskHash) : null;
             }
         };
 
-        return manager(ctx).registerListener(routineId, lsnr, internal, entryLsnr);
+        return manager(ctx).registerListener(routineId, lsnr, internal);
     }
 
     /** {@inheritDoc} */
@@ -332,7 +340,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         assert ctx.config().isPeerClassLoadingEnabled();
 
         if (rmtFilter != null && !U.isGrid(rmtFilter.getClass()))
-            filterDep = new DeployableObject(rmtFilter, ctx);
+            rmtFilterDep = new DeployableObject(rmtFilter, ctx);
     }
 
     /** {@inheritDoc} */
@@ -341,8 +349,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         assert ctx != null;
         assert ctx.config().isPeerClassLoadingEnabled();
 
-        if (filterDep != null)
-            rmtFilter = filterDep.unmarshal(nodeId, ctx);
+        if (rmtFilterDep != null)
+            rmtFilter = rmtFilterDep.unmarshal(nodeId, ctx);
     }
 
     /** {@inheritDoc} */
@@ -355,21 +363,20 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         U.writeString(out, cacheName);
         out.writeObject(topic);
 
-        boolean b = filterDep != null;
+        boolean b = rmtFilterDep != null;
 
         out.writeBoolean(b);
 
         if (b)
-            out.writeObject(filterDep);
+            out.writeObject(rmtFilterDep);
         else
             out.writeObject(rmtFilter);
 
         out.writeBoolean(internal);
-        out.writeBoolean(entryLsnr);
+        out.writeBoolean(oldValRequired);
         out.writeBoolean(sync);
-        out.writeBoolean(oldVal);
+        out.writeBoolean(ignoreExpired);
         out.writeInt(taskHash);
-        out.writeBoolean(keepPortable);
     }
 
     /** {@inheritDoc} */
@@ -381,16 +388,15 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         boolean b = in.readBoolean();
 
         if (b)
-            filterDep = (DeployableObject)in.readObject();
+            rmtFilterDep = (DeployableObject)in.readObject();
         else
             rmtFilter = (CacheEntryEventFilter<K, V>)in.readObject();
 
         internal = in.readBoolean();
-        entryLsnr = in.readBoolean();
+        oldValRequired = in.readBoolean();
         sync = in.readBoolean();
-        oldVal = in.readBoolean();
+        ignoreExpired = in.readBoolean();
         taskHash = in.readInt();
-        keepPortable = in.readBoolean();
     }
 
     /**

@@ -1589,15 +1589,8 @@ public class GridCacheProcessor extends GridProcessorAdapter {
      *
      * @return Utility cache.
      */
-    public <K, V> GridCache<K, V> utilityCache() {
-        return cache(CU.UTILITY_CACHE_NAME);
-    }
-
-    /**
-     * @return Utility cache.
-     */
-    public <K, V> IgniteCache<K, V> utilityJCache() {
-        return jcache(CU.UTILITY_CACHE_NAME);
+    public <K, V> GridCacheAdapter<K, V> utilityCache() {
+        return internalCache(CU.UTILITY_CACHE_NAME);
     }
 
     /**

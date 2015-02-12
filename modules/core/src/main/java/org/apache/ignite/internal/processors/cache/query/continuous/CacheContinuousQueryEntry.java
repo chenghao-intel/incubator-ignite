@@ -172,14 +172,6 @@ class CacheContinuousQueryEntry<K, V> implements GridCacheDeployable, Externaliz
         return oldVal;
     }
 
-    /**
-     * Nullifies old value.
-     */
-    void nullifyOldValue() {
-        oldVal = null;
-        oldValBytes = null;
-    }
-
     /** {@inheritDoc} */
     @Override public void prepare(GridDeploymentInfo depInfo) {
         this.depInfo = depInfo;

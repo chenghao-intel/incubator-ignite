@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache.datastructures;
 
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
-import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.internal.*;
 import org.apache.ignite.internal.processors.cache.*;
@@ -32,8 +31,6 @@ import org.apache.ignite.resources.*;
 import org.jdk8.backport.*;
 import org.jetbrains.annotations.*;
 
-import javax.cache.*;
-import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.*;
 import java.io.*;
 import java.util.*;
@@ -60,8 +57,11 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     /** Queue header view.  */
     private CacheProjection<GridCacheQueueHeaderKey, GridCacheQueueHeader> queueHdrView;
 
+    /** System cache. */
+    private GridCacheAdapter<Object, Object> sysCache;
+
     /** Query notifying about queue update. */
-    private QueryCursor<Cache.Entry<Object, Object>> queueQryCur;
+    private UUID queueQryId;
 
     /** Queue query creation guard. */
     private final AtomicBoolean queueQryGuard = new AtomicBoolean();
@@ -89,6 +89,8 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
         try {
             queueHdrView = cctx.cache().projection(GridCacheQueueHeaderKey.class, GridCacheQueueHeader.class);
 
+            sysCache = cctx.kernalContext().cache().utilityCache();
+
             initFlag = true;
         }
         finally {
@@ -100,8 +102,8 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     @Override protected void onKernalStop0(boolean cancel) {
         busyLock.block();
 
-        if (queueQryCur != null)
-            queueQryCur.close();
+        if (queueQryId != null)
+            cctx.continuousQueries().cancelInternalQuery(queueQryId);
 
         for (GridCacheQueueProxy q : queuesMap.values())
             q.delegate().onKernalStop();
@@ -184,48 +186,43 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
                 return null;
 
             if (queueQryGuard.compareAndSet(false, true)) {
-                ContinuousQuery<Object, Object> qry = Query.continuous();
+                queueQryId = sysCache.context().continuousQueries().executeInternalQuery(
+                    new CacheEntryUpdatedListener<Object, Object>() {
+                        @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
+                            if (!busyLock.enterBusy())
+                                return;
 
-                qry.setLocalListener(new CacheEntryUpdatedListener<Object, Object>() {
-                    @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
-                        if (!busyLock.enterBusy())
-                            return;
+                            try {
+                                for (CacheEntryEvent<?, ?> e : evts) {
+                                    GridCacheQueueHeaderKey key = (GridCacheQueueHeaderKey)e.getKey();
+                                    GridCacheQueueHeader hdr = (GridCacheQueueHeader)e.getValue();
 
-                        try {
-                            for (CacheEntryEvent<?, ?> e : evts) {
-                                GridCacheQueueHeaderKey key = (GridCacheQueueHeaderKey)e.getKey();
-                                GridCacheQueueHeader hdr = (GridCacheQueueHeader)e.getValue();
+                                    for (final GridCacheQueueProxy queue : queuesMap.values()) {
+                                        if (queue.name().equals(key.queueName())) {
+                                            if (hdr == null) {
+                                                GridCacheQueueHeader oldHdr = (GridCacheQueueHeader)e.getOldValue();
 
-                                for (final GridCacheQueueProxy queue : queuesMap.values()) {
-                                    if (queue.name().equals(key.queueName())) {
-                                        if (hdr == null) {
-                                            GridCacheQueueHeader oldHdr = (GridCacheQueueHeader)e.getOldValue();
+                                                assert oldHdr != null;
 
-                                            assert oldHdr != null;
+                                                if (oldHdr.id().equals(queue.delegate().id())) {
+                                                    queue.delegate().onRemoved(false);
 
-                                            if (oldHdr.id().equals(queue.delegate().id())) {
-                                                queue.delegate().onRemoved(false);
-
-                                                queuesMap.remove(queue.delegate().id());
+                                                    queuesMap.remove(queue.delegate().id());
+                                                }
                                             }
+                                            else
+                                                queue.delegate().onHeaderChanged(hdr);
                                         }
-                                        else
-                                            queue.delegate().onHeaderChanged(hdr);
                                     }
                                 }
                             }
+                            finally {
+                                busyLock.leaveBusy();
+                            }
                         }
-                        finally {
-                            busyLock.leaveBusy();
-                        }
-                    }
-                });
-
-                qry.setRemoteFilter(new QueueHeaderPredicate());
-
-                IgniteCache<Object, Object> jCache = cctx.kernalContext().cache().utilityJCache();
-
-                queueQryCur = cctx.isLocal() || cctx.isReplicated() ? jCache.localQuery(qry) : jCache.query(qry);
+                    },
+                    new QueueHeaderPredicate(),
+                    cctx.isLocal() || cctx.isReplicated());
             }
 
             GridCacheQueueProxy queue = queuesMap.get(hdr.id());
