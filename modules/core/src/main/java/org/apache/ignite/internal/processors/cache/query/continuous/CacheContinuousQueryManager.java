@@ -125,14 +125,6 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
         assert e != null;
         assert key != null;
 
-        boolean hasNewVal = newVal != null || (newBytes != null && !newBytes.isNull());
-        boolean hasOldVal = oldVal != null || (oldBytes != null && !oldBytes.isNull());
-
-        if (!hasNewVal && !hasOldVal)
-            return;
-
-        EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
-
         ConcurrentMap<UUID, CacheContinuousQueryListener<K, V>> lsnrCol;
 
         if (e.isInternal())
@@ -142,6 +134,14 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
 
         if (F.isEmpty(lsnrCol))
             return;
+
+        boolean hasNewVal = newVal != null || (newBytes != null && !newBytes.isNull());
+        boolean hasOldVal = oldVal != null || (oldBytes != null && !oldBytes.isNull());
+
+        if (!hasNewVal && !hasOldVal)
+            return;
+
+        EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
 
         boolean initialized = false;
 
