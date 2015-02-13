@@ -96,20 +96,6 @@ class CacheContinuousQueryEntry<K, V> implements GridCacheDeployable, Externaliz
     }
 
     /**
-     * Unmarshals value from bytes if needed.
-     *
-     * @param marsh Marshaller.
-     * @param ldr Class loader.
-     * @throws IgniteCheckedException In case of error.
-     */
-    void initValue(Marshaller marsh, @Nullable ClassLoader ldr) throws IgniteCheckedException {
-        assert marsh != null;
-
-        if (newVal == null && newValBytes != null && !newValBytes.isNull())
-            newVal = newValBytes.isPlain() ? (V)newValBytes.get() : marsh.<V>unmarshal(newValBytes.get(), ldr);
-    }
-
-    /**
      * @param marsh Marshaller.
      * @throws IgniteCheckedException In case of error.
      */
