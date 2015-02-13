@@ -29,7 +29,8 @@ interface CacheContinuousQueryListener<K, V> {
     /**
      * Entry update callback.
      *
-     * @param e Entry.
+     * @param evt Event
+     * @param primary Primary flag.
      * @param recordIgniteEvt Whether to record event.
      */
     public void onEntryUpdated(CacheContinuousQueryEvent<K, V> evt, boolean primary, boolean recordIgniteEvt);
@@ -39,5 +40,8 @@ interface CacheContinuousQueryListener<K, V> {
      */
     public void onUnregister();
 
+    /**
+     * @return Whether old value is required.
+     */
     public boolean oldValueRequired();
 }

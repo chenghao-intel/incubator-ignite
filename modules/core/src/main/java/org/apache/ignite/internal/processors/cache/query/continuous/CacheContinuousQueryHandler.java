@@ -39,7 +39,7 @@ import static org.apache.ignite.events.EventType.*;
 /**
  * Continuous query handler.
  */
-public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler {
+class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler {
     /** */
     private static final long serialVersionUID = 0L;
 

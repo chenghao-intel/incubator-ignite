@@ -30,7 +30,7 @@ import java.io.*;
 import static org.apache.ignite.internal.processors.cache.GridCacheValueBytes.*;
 
 /**
- * Continuous query event.
+ * Continuous query entry.
  */
 class CacheContinuousQueryEntry<K, V> implements GridCacheDeployable, Externalizable {
     /** */
