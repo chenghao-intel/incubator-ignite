@@ -82,9 +82,6 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
     /** Component busy lock. */
     private GridSpinReadWriteLock busyLock;
 
-    /** Job meta query ID. */
-    private UUID jobMetaQryId;
-
     /** Closure to check result of async transform of system cache. */
     private final IgniteInClosure<IgniteInternalFuture<?>> failsLog = new CI1<IgniteInternalFuture<?>>() {
         @Override public void apply(IgniteInternalFuture<?> gridFut) {
@@ -172,7 +169,7 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
     @Override public void onKernalStart() throws IgniteCheckedException {
         super.onKernalStart();
 
-        jobMetaQryId = jobMetaCache().context().continuousQueries().executeInternalQuery(
+        jobMetaCache().context().continuousQueries().executeInternalQuery(
             new CacheEntryUpdatedListener<GridHadoopJobId, GridHadoopJobMetadata>() {
                 @Override public void onUpdated(final Iterable<CacheEntryEvent<? extends GridHadoopJobId,
                     ? extends GridHadoopJobMetadata>> evts) {
@@ -227,8 +224,6 @@ public class GridHadoopJobTracker extends GridHadoopComponent {
         // Fail all pending futures.
         for (GridFutureAdapter<GridHadoopJobId> fut : activeFinishFuts.values())
             fut.onDone(new IgniteCheckedException("Failed to execute Hadoop map-reduce job (grid is stopping)."));
-
-        jobMetaCache().context().continuousQueries().cancelInternalQuery(jobMetaQryId);
     }
 
     /**
