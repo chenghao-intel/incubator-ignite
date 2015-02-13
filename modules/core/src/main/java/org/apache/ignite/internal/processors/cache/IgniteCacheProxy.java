@@ -475,7 +475,7 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
      * @throws CacheException If query indexing disabled for sql query.
      */
     private void validate(Query qry) {
-        if (!(qry instanceof ScanQuery) && !ctx.config().isQueryIndexEnabled())
+        if (!(qry instanceof ScanQuery) && !(qry instanceof ContinuousQuery) && !ctx.config().isQueryIndexEnabled())
             throw new CacheException("Indexing is disabled for cache: " + ctx.cache().name());
     }
 
