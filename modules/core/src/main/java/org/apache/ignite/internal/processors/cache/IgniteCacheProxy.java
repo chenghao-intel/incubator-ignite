@@ -399,6 +399,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
+            validate(qry);
+
             if (qry instanceof SqlQuery) {
                 SqlQuery p = (SqlQuery)qry;
 
@@ -430,6 +432,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
+            validate(qry);
+
             if (ctx.isReplicated() || ctx.isLocal())
                 return doLocalFieldsQuery(qry);
 
@@ -464,6 +468,17 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
             ctx.name(), q.getSql(), q.getArgs()));
     }
 
+    /**
+     * Checks query.
+     *
+     * @param qry Query
+     * @throws CacheException If query indexing disabled for sql query.
+     */
+    private void validate(Query qry) {
+        if (!(qry instanceof ScanQuery) && !ctx.config().isQueryIndexEnabled())
+            throw new CacheException("Indexing is disabled for cache: " + ctx.cache().name());
+    }
+
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
     @Override public QueryCursor<Entry<K,V>> localQuery(Query qry) {
@@ -472,6 +487,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
+            validate(qry);
+
             if (qry instanceof SqlQuery)
                 return doLocalQuery((SqlQuery)qry);
             else if (qry instanceof ContinuousQuery)
@@ -497,6 +514,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         GridCacheProjectionImpl<K, V> prev = gate.enter(prj);
 
         try {
+            validate(qry);
+
             return doLocalFieldsQuery(qry);
         }
         catch (Exception e) {

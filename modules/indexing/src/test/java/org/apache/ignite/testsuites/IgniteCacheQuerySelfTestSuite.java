@@ -43,6 +43,7 @@ public class IgniteCacheQuerySelfTestSuite extends TestSuite {
         suite.addTestSuite(GridQueryParsingTest.class);
 
         // Queries tests.
+        suite.addTestSuite(GridCacheQueryIndexDisabledSelfTest.class);
         suite.addTestSuite(IgniteCacheQueryLoadSelfTest.class);
         suite.addTestSuite(IgniteCacheLocalQuerySelfTest.class);
         suite.addTestSuite(IgniteCacheLocalAtomicQuerySelfTest.class);
@@ -56,7 +57,7 @@ public class IgniteCacheQuerySelfTestSuite extends TestSuite {
         suite.addTestSuite(IgniteCacheQueryIndexSelfTest.class);
         suite.addTestSuite(GridCacheQueryInternalKeysSelfTest.class);
         suite.addTestSuite(IgniteCacheQueryMultiThreadedSelfTest.class);
-        suite.addTestSuite(IgniteCacheQueryEvictsMultiThreadedSelfTest.class);
+        //suite.addTestSuite(IgniteCacheQueryEvictsMultiThreadedSelfTest.class);
         suite.addTestSuite(IgniteCacheQueryOffheapMultiThreadedSelfTest.class);
         suite.addTestSuite(IgniteCacheQueryOffheapEvictsMultiThreadedSelfTest.class);
         suite.addTestSuite(IgniteCacheSqlQueryMultiThreadedSelfTest.class);
