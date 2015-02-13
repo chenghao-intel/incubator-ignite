@@ -57,9 +57,6 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     /** Queue header view.  */
     private CacheProjection<GridCacheQueueHeaderKey, GridCacheQueueHeader> queueHdrView;
 
-    /** System cache. */
-    private GridCacheAdapter<Object, Object> sysCache;
-
     /** Query notifying about queue update. */
     private UUID queueQryId;
 
@@ -88,8 +85,6 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     @Override protected void onKernalStart0() throws IgniteCheckedException {
         try {
             queueHdrView = cctx.cache().projection(GridCacheQueueHeaderKey.class, GridCacheQueueHeader.class);
-
-            sysCache = cctx.kernalContext().cache().utilityCache();
 
             initFlag = true;
         }
@@ -186,9 +181,9 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
                 return null;
 
             if (queueQryGuard.compareAndSet(false, true)) {
-                queueQryId = sysCache.context().continuousQueries().executeInternalQuery(
-                    new CacheEntryUpdatedListener<Object, Object>() {
-                        @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
+                queueQryId = cctx.continuousQueries().executeInternalQuery(
+                    new CacheEntryUpdatedListener<K, V>() {
+                        @Override public void onUpdated(Iterable<CacheEntryEvent<? extends K, ? extends V>> evts) {
                             if (!busyLock.enterBusy())
                                 return;
 
@@ -533,7 +528,8 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
     /**
      * Predicate for queue continuous query.
      */
-    private static class QueueHeaderPredicate implements CacheEntryEventFilter<Object, Object>, Externalizable {
+    private static class QueueHeaderPredicate<K, V> implements CacheEntryEventFilter<K, V>,
+        Externalizable {
         /** */
         private static final long serialVersionUID = 0L;
 
@@ -545,7 +541,7 @@ public class CacheDataStructuresManager<K, V> extends GridCacheManagerAdapter<K,
         }
 
         /** {@inheritDoc} */
-        @Override public boolean evaluate(CacheEntryEvent<?, ?> e) {
+        @Override public boolean evaluate(CacheEntryEvent<? extends K, ? extends V> e) {
             return e.getKey() instanceof GridCacheQueueHeaderKey;
         }
 
