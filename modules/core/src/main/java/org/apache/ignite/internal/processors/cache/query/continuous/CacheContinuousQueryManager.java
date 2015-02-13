@@ -166,7 +166,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
                 lsnr.oldValueRequired() ? oldVal : null, lsnr.oldValueRequired() ? oldBytes : null);
 
             CacheContinuousQueryEvent<K, V> evt = new CacheContinuousQueryEvent<>(
-                cctx.kernalContext().cache().publicJCache(cctx.name()), evtType, e0);
+                cctx.kernalContext().cache().jcache(cctx.name()), evtType, e0);
 
             lsnr.onEntryUpdated(evt, primary, recordIgniteEvt);
         }
@@ -213,7 +213,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
                     lsnr.oldValueRequired() ? oldVal : null, lsnr.oldValueRequired() ? oldBytes : null);
 
                 CacheContinuousQueryEvent<K, V> evt = new CacheContinuousQueryEvent<>(
-                    cctx.kernalContext().cache().publicJCache(cctx.name()), EXPIRED, e0);
+                    cctx.kernalContext().cache().jcache(cctx.name()), EXPIRED, e0);
 
                 lsnr.onEntryUpdated(evt, primary, recordIgniteEvt);
             }
@@ -482,7 +482,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
                 throw new IgniteCheckedException("Listener must implement one of CacheEntryListener sub-interfaces.");
 
             CacheEntryUpdatedListener<K, V> locLsnr = (CacheEntryUpdatedListener<K, V>)new JCacheQueryLocalListener(
-                locLsnrImpl, cctx.kernalContext().cache().publicJCache(cctx.name()));
+                locLsnrImpl, cctx.kernalContext().cache().jcache(cctx.name()));
 
             CacheEntryEventFilter<K, V> rmtFilter = (CacheEntryEventFilter<K, V>)new JCacheQueryRemoteFilter<>(
                 cfg.getCacheEntryEventFilterFactory() != null ? cfg.getCacheEntryEventFilterFactory().create() : null,
