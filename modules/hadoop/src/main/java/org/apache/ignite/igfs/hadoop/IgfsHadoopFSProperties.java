@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.igfs.hadoop;
+package org.apache.ignite.igfs.hadoop;
 
 import org.apache.hadoop.fs.permission.*;
 import org.apache.ignite.*;

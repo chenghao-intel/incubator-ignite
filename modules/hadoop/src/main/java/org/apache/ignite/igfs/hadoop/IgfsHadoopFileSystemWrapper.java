@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.igfs.hadoop;
+package org.apache.ignite.igfs.hadoop;
 
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.fs.*;
@@ -104,8 +104,6 @@ public class IgfsHadoopFileSystemWrapper implements Igfs, AutoCloseable {
         IgfsException igfsErr = !wrongVer ? cast(detailMsg, e) :
             new IgfsInvalidHdfsVersionException("HDFS version you are connecting to differs from local " +
                 "version.", e);
-
-
 
         return igfsErr;
     }

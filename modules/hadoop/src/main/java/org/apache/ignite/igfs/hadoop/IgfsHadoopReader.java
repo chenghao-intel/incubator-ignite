@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.igfs.hadoop;
+package org.apache.ignite.igfs.hadoop;
 
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.FileSystem;
@@ -30,7 +30,7 @@ import java.io.*;
  * <p>
  * The class is expected to be used only from synchronized context and therefore is not tread-safe.
  */
-public class IgfsHadoopReader implements IgfsReader {
+class IgfsHadoopReader implements IgfsReader {
     /** Secondary file system. */
     private final FileSystem fs;
 
