@@ -59,6 +59,9 @@ public class GridAffinityAssignmentCache {
     /** Affinity mapper function. */
     private final CacheAffinityKeyMapper affMapper;
 
+    /** Default affinity mapper function. */
+    private final CacheAffinityKeyMapper dfltAffMapper;
+
     /** Affinity calculation results cache: topology version => partition => nodes. */
     private final ConcurrentMap<Long, GridAffinityAssignment> affCache;
 
@@ -84,6 +87,7 @@ public class GridAffinityAssignmentCache {
      * @param cacheName Cache name.
      * @param aff Affinity function.
      * @param affMapper Affinity key mapper.
+     * @param dfltAffMapper Default affinity key mapper.
      * @param backups Number of backups.
      */
     @SuppressWarnings("unchecked")
@@ -91,6 +95,7 @@ public class GridAffinityAssignmentCache {
         String cacheName,
         CacheAffinityFunction aff,
         CacheAffinityKeyMapper affMapper,
+        CacheAffinityKeyMapper dfltAffMapper,
         int backups)
     {
         this.ctx = ctx;
@@ -98,6 +103,7 @@ public class GridAffinityAssignmentCache {
         this.affMapper = affMapper;
         this.cacheName = cacheName;
         this.backups = backups;
+        this.dfltAffMapper = dfltAffMapper;
 
         log = ctx.logger(GridAffinityAssignmentCache.class);
 
@@ -305,7 +311,18 @@ public class GridAffinityAssignmentCache {
             }
         }
 
-        return aff.partition(affMapper.affinityKey(key));
+        return aff.partition(affinityKey(key));
+    }
+
+    /**
+     * If Key is {@link GridCacheInternal GridCacheInternal} entry when won't passed into user's mapper and
+     * will use {@link GridCacheDefaultAffinityKeyMapper default}.
+     * 
+     * @param key Key.
+     * @return Affinity key.
+     */
+    private Object affinityKey(Object key) {
+        return (dfltAffMapper != null && key instanceof GridCacheInternal ? dfltAffMapper : affMapper).affinityKey(key);
     }
 
     /**

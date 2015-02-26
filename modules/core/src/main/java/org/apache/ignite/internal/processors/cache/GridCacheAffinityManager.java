@@ -44,8 +44,17 @@ public class GridCacheAffinityManager<K, V> extends GridCacheManagerAdapter<K, V
 
     /** {@inheritDoc} */
     @Override public void start0() throws IgniteCheckedException {
-        aff = new GridAffinityAssignmentCache(cctx, cctx.namex(), cctx.config().getAffinity(),
-            cctx.config().getAffinityMapper(), cctx.config().getBackups());
+        GridCacheDefaultAffinityKeyMapper dfltAffKeyMapper = null;
+
+        if (!cctx.config().getAffinityMapper().getClass().equals(GridCacheDefaultAffinityKeyMapper.class)) {
+            dfltAffKeyMapper = new GridCacheDefaultAffinityKeyMapper();
+            
+            dfltAffKeyMapper.setIgnite(cctx.grid());
+            dfltAffKeyMapper.setLog(cctx.logger(GridCacheDefaultAffinityKeyMapper.class));
+        }
+
+        aff = new GridAffinityAssignmentCache(cctx, cctx.namex(), cctx.config().getAffinity(), 
+            cctx.config().getAffinityMapper(), dfltAffKeyMapper, cctx.config().getBackups());
 
         // Generate internal keys for partitions.
         int partCnt = partitions();

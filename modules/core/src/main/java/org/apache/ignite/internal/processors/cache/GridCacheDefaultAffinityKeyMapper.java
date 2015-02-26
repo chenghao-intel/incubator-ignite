@@ -45,7 +45,6 @@ public class GridCacheDefaultAffinityKeyMapper implements CacheAffinityKeyMapper
     private static final long serialVersionUID = 0L;
 
     /** Injected ignite instance. */
-    @IgniteInstanceResource
     private Ignite ignite;
 
     /** Reflection cache. */
@@ -75,7 +74,6 @@ public class GridCacheDefaultAffinityKeyMapper implements CacheAffinityKeyMapper
     );
 
     /** Logger. */
-    @LoggerResource
     private transient IgniteLogger log;
 
     /**
@@ -123,5 +121,25 @@ public class GridCacheDefaultAffinityKeyMapper implements CacheAffinityKeyMapper
     /** {@inheritDoc} */
     @Override public void reset() {
         // No-op.
+    }
+
+    /**
+     * Sets logger.
+     *
+     * @param log Ignite logger.
+     */
+    @LoggerResource
+    public void setLog(IgniteLogger log) {
+        this.log = log;
+    }
+
+    /**
+     * Sets Ignite.
+     *
+     * @param ignite Ignite.
+     */
+    @IgniteInstanceResource
+    public void setIgnite(Ignite ignite) {
+        this.ignite = ignite;
     }
 }
