@@ -35,7 +35,7 @@ public class GridCacheReturn<V> implements Externalizable, OptimizedMarshallable
 
     /** */
     @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "JavaAbbreviationUsage", "UnusedDeclaration"})
-    private static Object GG_CLASS_ID;
+    private static Object IGNITE_CLASS_ID;
 
     /** Value. */
     @GridToStringInclude
@@ -202,7 +202,7 @@ public class GridCacheReturn<V> implements Externalizable, OptimizedMarshallable
 
     /** {@inheritDoc} */
     @Override public Object ggClassId() {
-        return GG_CLASS_ID;
+        return IGNITE_CLASS_ID;
     }
 
     /** {@inheritDoc} */

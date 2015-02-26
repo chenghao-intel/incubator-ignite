@@ -552,7 +552,7 @@ public class GridCacheReplicatedPreloadSelfTest extends GridCommonAbstractTest {
             return res;
         }
 
-        /** {@inheritDoc} */
+        /**  */
         @SuppressWarnings({"RedundantTypeArguments"})
         public List<ClusterNode> nodes(int part, Collection<ClusterNode> nodes) {
             Collection<ClusterNode> col = new HashSet<>(nodes);

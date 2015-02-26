@@ -27,11 +27,11 @@ import java.util.*;
  * <ul>
  * <li>
  *     Must have static filed (private or public) declared of type {@link Object}
- *     with name {@code GG_CLASS_ID}. Ignite will reflectively initialize this field with
+ *     with name {@code IGNITE_CLASS_ID}. Ignite will reflectively initialize this field with
  *     proper class ID during system startup.
  * </li>
  * <li>
- *     Must return the value of {@code GG_CLASS_ID} field from {@link #ggClassId} method.
+ *     Must return the value of {@code IGNITE_CLASS_ID} field from {@link #ggClassId} method.
  * </li>
  * </ul>
  * Here is a sample implementation:
@@ -39,12 +39,12 @@ import java.util.*;
  * // For better performance consider implementing java.io.Externalizable interface.
  * class ExampleMarshallable implements GridOptimizedMarshallable, Serializable {
  *     // Class ID field required by 'GridOptimizedMarshallable'.
- *     private static Object GG_CLASS_ID;
+ *     private static Object IGNITE_CLASS_ID;
  *
  *     ...
  *
  *     &#64; public Object ggClassId() {
- *         return GG_CLASS_ID;
+ *         return IGNITE_CLASS_ID;
  *     }
  * }
  * </pre>
@@ -54,10 +54,10 @@ import java.util.*;
  */
 public interface OptimizedMarshallable {
     /** */
-    public static final String CLS_ID_FIELD_NAME = "GG_CLASS_ID";
+    public static final String CLS_ID_FIELD_NAME = "IGNITE_CLASS_ID";
 
     /**
-     * Implementation of this method should simply return value of {@code GG_CLASS_ID} field.
+     * Implementation of this method should simply return value of {@code IGNITE_CLASS_ID} field.
      *
      * @return Class ID for optimized marshalling.
      */

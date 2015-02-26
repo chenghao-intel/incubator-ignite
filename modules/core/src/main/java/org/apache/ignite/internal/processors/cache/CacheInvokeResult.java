@@ -33,7 +33,7 @@ public class CacheInvokeResult<T> implements EntryProcessorResult<T>, Externaliz
 
     /** */
     @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "JavaAbbreviationUsage", "UnusedDeclaration"})
-    private static Object GG_CLASS_ID;
+    private static Object IGNITE_CLASS_ID;
 
     /** */
     @GridToStringInclude
@@ -65,7 +65,7 @@ public class CacheInvokeResult<T> implements EntryProcessorResult<T>, Externaliz
 
     /** {@inheritDoc} */
     @Override public Object ggClassId() {
-        return GG_CLASS_ID;
+        return IGNITE_CLASS_ID;
     }
 
     /** {@inheritDoc} */

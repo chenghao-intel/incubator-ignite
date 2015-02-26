@@ -35,7 +35,7 @@ public class GridCacheVersion implements Message, Comparable<GridCacheVersion>, 
 
     /** */
     @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-    private static Object GG_CLASS_ID;
+    private static Object IGNITE_CLASS_ID;
 
     /** Node order mask. */
     private static final int NODE_ORDER_MASK = 0x07_FF_FF_FF;
@@ -187,7 +187,7 @@ public class GridCacheVersion implements Message, Comparable<GridCacheVersion>, 
 
     /** {@inheritDoc} */
     @Override public Object ggClassId() {
-        return GG_CLASS_ID;
+        return IGNITE_CLASS_ID;
     }
 
     /**

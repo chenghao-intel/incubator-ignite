@@ -76,7 +76,7 @@ public class QueryConfiguration {
         this.maxOffHeapMemory = maxOffHeapMemory;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     public long getMaxOffHeapMemory() {
         return maxOffHeapMemory;
     }
@@ -103,12 +103,12 @@ public class QueryConfiguration {
         this.searchPath = searchPath;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     @Nullable public String[] getSearchPath() {
         return searchPath;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     @Nullable public String getInitialScriptPath() {
         return initScriptPath;
     }
@@ -133,12 +133,12 @@ public class QueryConfiguration {
         this.idxCustomFuncClss = idxCustomFuncClss;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     @Nullable public Class<?>[] getIndexCustomFunctionClasses() {
         return idxCustomFuncClss;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     public long getLongQueryExecutionTimeout() {
         return longQryExecTimeout;
     }
@@ -157,7 +157,7 @@ public class QueryConfiguration {
         this.longQryExecTimeout = longQryExecTimeout;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     public boolean isLongQueryExplain() {
         return longQryExplain;
     }

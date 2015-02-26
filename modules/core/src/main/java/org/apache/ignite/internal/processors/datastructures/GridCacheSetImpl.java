@@ -340,7 +340,7 @@ public class GridCacheSetImpl<T> extends AbstractCollection<T> implements Ignite
         }
     }
 
-    /** {@inheritDoc} */
+    /**  */
     @SuppressWarnings("unchecked")
     private GridCloseableIterator<T> iterator0() {
         try {

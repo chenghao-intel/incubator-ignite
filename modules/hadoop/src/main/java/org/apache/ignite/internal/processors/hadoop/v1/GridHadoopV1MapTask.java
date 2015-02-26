@@ -31,7 +31,9 @@ public class GridHadoopV1MapTask extends GridHadoopV1Task {
     /** */
     private static final String[] EMPTY_HOSTS = new String[0];
 
-    /** {@inheritDoc} */
+    /** 
+     * @param taskInfo 
+     */
     public GridHadoopV1MapTask(GridHadoopTaskInfo taskInfo) {
         super(taskInfo);
     }
@@ -45,7 +47,7 @@ public class GridHadoopV1MapTask extends GridHadoopV1Task {
 
         JobConf jobConf = ctx.jobConf();
 
-        InputFormat inFormat = jobConf.getInputFormat();
+        InputFormat<Object,Object> inFormat = jobConf.getInputFormat();
 
         GridHadoopInputSplit split = info().inputSplit();
 
@@ -69,9 +71,9 @@ public class GridHadoopV1MapTask extends GridHadoopV1Task {
             collector = collector(jobConf, ctx, !job.info().hasCombiner() && !job.info().hasReducer(),
                 fileName(), ctx.attemptId());
 
-            RecordReader reader = inFormat.getRecordReader(nativeSplit, jobConf, reporter);
+            RecordReader<Object,Object> reader = inFormat.getRecordReader(nativeSplit, jobConf, reporter);
 
-            Mapper mapper = ReflectionUtils.newInstance(jobConf.getMapperClass(), jobConf);
+            Mapper<Object,Object, Object,Object> mapper = ReflectionUtils.newInstance(jobConf.getMapperClass(), jobConf);
 
             Object key = reader.createKey();
             Object val = reader.createValue();

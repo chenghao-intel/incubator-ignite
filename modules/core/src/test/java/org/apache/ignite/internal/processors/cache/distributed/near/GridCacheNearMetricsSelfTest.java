@@ -42,7 +42,7 @@ public class GridCacheNearMetricsSelfTest extends GridCacheAbstractSelfTest {
         return false;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     protected boolean perEntryMetricsEnabled() {
         return true;
     }

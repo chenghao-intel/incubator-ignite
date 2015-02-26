@@ -8168,6 +8168,7 @@ public abstract class IgniteUtils {
     /**
      * @param userWorkDir Ignite work folder provided by user.
      * @param userIgniteHome Ignite home folder provided by user.
+     * @throws IgniteCheckedException 
      */
     public static void setWorkDirectory(@Nullable String userWorkDir, @Nullable String userIgniteHome)
         throws IgniteCheckedException {
@@ -8819,6 +8820,7 @@ public abstract class IgniteUtils {
      *
      * @param cond Assertion condition to check.
      * @param condDesc Description of failed condition.
+     * @throws IgniteException 
      */
     public static void assertParameter(boolean cond, String condDesc) throws IgniteException {
         if (!cond)

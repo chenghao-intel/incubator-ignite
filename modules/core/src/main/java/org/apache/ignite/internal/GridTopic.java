@@ -192,7 +192,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -218,7 +218,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -264,7 +264,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -295,7 +295,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -343,7 +343,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -385,7 +385,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -415,7 +415,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -451,7 +451,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -501,7 +501,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -537,7 +537,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -587,7 +587,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -618,7 +618,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -666,7 +666,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -707,7 +707,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */
@@ -760,7 +760,7 @@ public enum GridTopic {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private GridTopic topic;
@@ -791,7 +791,7 @@ public enum GridTopic {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */

@@ -149,7 +149,7 @@ public class GridCacheLifecycleAwareSelfTest extends GridAbstractLifecycleAwareS
             return res;
         }
 
-        /** {@inheritDoc} */
+        /**  */
         public List<ClusterNode> nodes(int part, Collection<ClusterNode> nodes) {
             return new ArrayList<>(nodes);
         }

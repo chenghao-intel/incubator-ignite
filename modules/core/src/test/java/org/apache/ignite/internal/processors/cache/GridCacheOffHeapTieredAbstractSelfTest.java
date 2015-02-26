@@ -57,7 +57,7 @@ public abstract class GridCacheOffHeapTieredAbstractSelfTest extends GridCacheAb
         return PARTITIONED_ONLY;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     protected boolean portableEnabled() {
         return false;
     }

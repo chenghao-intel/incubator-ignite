@@ -153,9 +153,9 @@ public class GridCachePartitionedEvictionSelfTest extends GridCacheAbstractSelfT
     }
 
     /**
-     * @throws Exception If failed.
      * @param concurrency Tx concurrency.
      * @param isolation Tx isolation.
+     * @throws Exception If failed.
      */
     private void doTestEviction(TransactionConcurrency concurrency, TransactionIsolation isolation)
         throws Exception {

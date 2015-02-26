@@ -99,7 +99,7 @@ public class GridCacheModuloAffinityFunction implements CacheAffinityFunction {
         return Collections.unmodifiableList(res);
     }
 
-    /** {@inheritDoc} */
+    /** */
     public Collection<ClusterNode> nodes(int part, Collection<ClusterNode> nodes) {
         List<ClusterNode> sorted = new ArrayList<>(nodes);
 

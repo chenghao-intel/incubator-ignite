@@ -702,7 +702,7 @@ public class GridCacheWriteBehindStore<K, V> implements CacheStore<K, V>, Lifecy
      * Thread that performs time-based flushing of written values to the underlying storage.
      */
     private class Flusher extends GridWorker {
-        /** {@inheritDoc */
+        /**  */
         protected Flusher(String gridName, String name, IgniteLogger log) {
             super(gridName, name, log);
         }

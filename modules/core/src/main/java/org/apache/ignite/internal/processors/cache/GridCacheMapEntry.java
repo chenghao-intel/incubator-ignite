@@ -650,7 +650,7 @@ public abstract class GridCacheMapEntry<K, V> implements GridCacheEntryEx<K, V> 
             expirePlc);
     }
 
-    /** {@inheritDoc} */
+    /**  */
     @SuppressWarnings({"unchecked", "RedundantTypeArguments", "TooBroadScope"})
     private V innerGet0(IgniteInternalTx<K, V> tx,
         boolean readSwap,

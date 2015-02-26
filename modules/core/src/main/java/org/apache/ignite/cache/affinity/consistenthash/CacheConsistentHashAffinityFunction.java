@@ -572,7 +572,7 @@ public class CacheConsistentHashAffinityFunction implements CacheAffinityFunctio
         return nodeInfo;
     }
 
-    /** {@inheritDoc} */
+    /** */
     private void initialize() {
         if (!init.get() && init.compareAndSet(false, true)) {
             if (log.isInfoEnabled())

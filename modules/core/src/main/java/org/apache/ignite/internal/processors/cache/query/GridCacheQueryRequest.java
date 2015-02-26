@@ -372,7 +372,7 @@ public class GridCacheQueryRequest<K, V> extends GridCacheMessage<K, V> implemen
         return keyValFilter;
     }
 
-    /** {@inheritDoc} */
+    /**  */
     public IgnitePredicate<Cache.Entry<Object, Object>> projectionFilter() {
         return prjFilter;
     }

@@ -143,7 +143,7 @@ public class GridCacheQueryJdbcTask extends ComputeTaskAdapter<byte[], byte[]> {
 
         /** */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** Arguments. */
         private final Map<String, Object> args;
@@ -173,7 +173,7 @@ public class GridCacheQueryJdbcTask extends ComputeTaskAdapter<byte[], byte[]> {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
 
         /** {@inheritDoc} */

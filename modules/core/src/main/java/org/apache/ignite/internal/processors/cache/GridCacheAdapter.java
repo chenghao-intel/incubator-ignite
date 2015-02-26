@@ -929,7 +929,7 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         return peek0(key, modes, ctx.tm().localTxx());
     }
 
-    /** {@inheritDoc} */
+    /** */
     public Map<K, V> peekAll(@Nullable Collection<? extends K> keys,
         @Nullable IgnitePredicate<Cache.Entry<K, V>>... filter) {
         return peekAll0(keys, filter, null);
@@ -1376,7 +1376,7 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         return values((IgnitePredicate<Cache.Entry<K, V>>[])null);
     }
 
-    /** {@inheritDoc} */
+    /** */
     public Collection<V> values(IgnitePredicate<Cache.Entry<K, V>>... filter) {
         return map.values(filter);
     }
@@ -2059,7 +2059,7 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
         return res;
     }
 
-    /** {@inheritDoc} */
+    /** */
     protected IgniteInternalFuture<Map<K, V>> getAllAsync(
         @Nullable Collection<? extends K> keys,
         boolean forcePrimary,
@@ -2086,7 +2086,7 @@ public abstract class GridCacheAdapter<K, V> implements GridCache<K, V>,
             skipVals);
     }
 
-    /** {@inheritDoc} */
+    /**  */
     public IgniteInternalFuture<Map<K, V>> getAllAsync(@Nullable final Collection<? extends K> keys,
         boolean readThrough,
         @Nullable GridCacheEntryEx<K, V> cached,

@@ -609,7 +609,7 @@ public class GridCacheDeploymentManager<K, V> extends GridCacheSharedManagerAdap
                     if (curLdr.equals(ldr))
                         break;
 
-                    // If current deployment is either system loader or GG loader,
+                    // If current deployment is either system loader or Ignite loader,
                     // then we don't check it, as new loader is most likely wider.
                     if (!curLdr.equals(U.gridClassLoader()) && dep.deployedClass(cls.getName()) != null)
                         // Local deployment can load this class already, so no reason

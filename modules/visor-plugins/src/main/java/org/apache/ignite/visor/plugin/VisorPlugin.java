@@ -23,7 +23,7 @@ import ro.fortsoft.pf4j.*;
  * Base class for Visor plugins.
  */
 public abstract class VisorPlugin extends Plugin {
-    /** {@inheritDoc} */
+    /** */
     public VisorPlugin(PluginWrapper wrapper) {
         super(wrapper);
     }

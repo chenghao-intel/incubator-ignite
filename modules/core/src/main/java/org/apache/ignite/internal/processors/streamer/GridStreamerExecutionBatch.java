@@ -36,7 +36,7 @@ public class GridStreamerExecutionBatch implements Externalizable, OptimizedMars
 
     /** */
     @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-    private static Object GG_CLASS_ID;
+    private static Object IGNITE_CLASS_ID;
 
     /** Execution ID (ID of root future). */
     private IgniteUuid execId;
@@ -155,7 +155,7 @@ public class GridStreamerExecutionBatch implements Externalizable, OptimizedMars
 
     /** {@inheritDoc} */
     @Override public Object ggClassId() {
-        return GG_CLASS_ID;
+        return IGNITE_CLASS_ID;
     }
 
     /** {@inheritDoc} */

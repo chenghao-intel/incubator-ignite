@@ -357,7 +357,7 @@ public class OptimizedMarshallerSelfTest extends GridMarshallerAbstractTest {
     public static class GoodMarshallable implements OptimizedMarshallable, Serializable {
         /** Class ID required by {@link OptimizedMarshallable}. */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /** */
         private String str;
@@ -390,7 +390,7 @@ public class OptimizedMarshallerSelfTest extends GridMarshallerAbstractTest {
 
         /** {@inheritDoc} */
         @Override public Object ggClassId() {
-            return GG_CLASS_ID;
+            return IGNITE_CLASS_ID;
         }
     }
 
@@ -434,7 +434,7 @@ public class OptimizedMarshallerSelfTest extends GridMarshallerAbstractTest {
     private static class BadMarshallable extends TestObject implements OptimizedMarshallable {
         /** Class ID required by {@link OptimizedMarshallable}. */
         @SuppressWarnings({"NonConstantFieldWithUpperCaseName", "AbbreviationUsage", "UnusedDeclaration"})
-        private static Object GG_CLASS_ID;
+        private static Object IGNITE_CLASS_ID;
 
         /**
          * @param str String.

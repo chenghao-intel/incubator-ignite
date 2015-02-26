@@ -202,7 +202,6 @@ public class IgfsPerformanceBenchmark {
         return args[idx];
     }
 
-    /** {@inheritDoc} */
     private static FileSystem igfs(Path home, String cfgPath) throws IOException {
         Configuration cfg = new Configuration();
 
